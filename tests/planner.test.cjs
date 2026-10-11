@@ -167,11 +167,21 @@ assert.equal(evaluate('teams[0].alternatives.tentativeNormal.choices[0].id'),'co
 assert(evaluate('tentativeAlternativeHTML(teams[0].members[0],teams[0])').includes('Rune-keeper'));
 // Enough people for two teams: propose parallel coverage and apply without generation.
 evaluate(`rolePriorities={};template.Healer=[0,0];size=6;players=Array.from({length:12},(_,i)=>({id:'config'+i,name:'Config '+i,max:1,available:[true],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}));runs=[{id:1,source:0,time:18,label:'One'}];teams=assign(runs);dirty=false;let proposed=findRecommendedConfiguration(teams,5000);`);
+assert(evaluate('proposed'));
 assert.equal(evaluate('proposed.uniquePlayers'),12);
 assert.equal(evaluate('proposed.completeTeams'),2);
+assert.equal(evaluate('proposed.runCount'),1);
+assert.equal(evaluate('proposed.groups'),2);
 assert.equal(evaluate('new Set(proposed.runs.map(r=>r.time)).size'),1);
+assert(evaluate('recommendedConfigurationHTML()').includes('Update run configuration'));
 evaluate('applyRecommendedConfiguration()');assert.equal(evaluate('runs.length'),2);assert.equal(evaluate('dirty'),true);
 assert.equal(evaluate('teams.length'),1);
+assert.equal(evaluate('recommendedConfiguration'),null);
+assert.equal(evaluate('recommendedConfigurationHTML()'),'');
+// Matching configuration hides the recommendation card.
+evaluate(`dirty=false;teams=assign(runs);let matched=findRecommendedConfiguration(teams,2000);`);
+assert.equal(evaluate('matched'),null);
+assert.equal(evaluate('recommendedConfigurationHTML()'),'');
 console.log('Passed: tentative normal selection with confirmed icon alternate; recommended parallel run template and explicit apply-then-generate workflow.');
 // All modes preserve required comp before avoiding repeats.
 evaluate(`fellowshipSetup=emptyFellowshipSetup();constraints=[];rolePriorities={};size=1;duration=1;template={Tank:[0,0],Healer:[1,1],Debuffer:[0,0],Buffer:[0,0]};runs=[{id:1,source:0,time:18,label:'One'},{id:2,source:1,time:19,label:'Two'}];players=[{id:'onlyHeal',name:'Only healer',available:[true,true],max:2,choices:[{c:'Minstrel',spec:'Blue',role:'Healer'}]},{id:'freshDps',name:'Fresh DPS',available:[true,true],max:2,choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}];lockPriority='gearing';teams=assign(runs);`);
@@ -200,3 +210,16 @@ evaluate(`template.Buffer=[0,1];let tierConstraint=newRule('presence');tierConst
 assert(evaluate('betterSchedule(scheduleObjective(preferredPlayer),scheduleObjective(preferredRole))'));
 evaluate(`lockPriority='quality'`);assert(evaluate('betterSchedule(scheduleObjective(preferredRole),scheduleObjective(preferredPlayer))'));
 console.log('Passed: required comp beats player preference, player preference beats preferred comp and additional constraints in comp mode; perfect mode applies its separate hierarchy.');
+// Duplicate same-class roster entries are separate characters for locks.
+evaluate(`lockPriority='gearing';size=1;duration=1;constraints=[];fellowshipSetup=emptyFellowshipSetup();rolePriorities={};template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};runs=[{id:1,source:0,time:18,label:'One'},{id:2,source:1,time:19,label:'Two'}];players=[{id:'twin',name:'Twin',max:2,available:[true,true],choices:[{c:'Guardian',spec:'Blue',role:'Tank'}],signupClasses:['Guardian']}];addSignupClass('twin','Guardian');ensureRosterCharacters();let twinSlots=players[0].signupCharacters.filter(s=>s.c==='Guardian');players[0].choices=[{c:'Guardian',spec:'Blue',role:'Tank',charId:twinSlots[0].id},{c:'Guardian',spec:'Red',role:'DPS',charId:twinSlots[1].id}];teams=assign(runs);`);
+assert.equal(evaluate('twinSlots.length'),2);
+assert.equal(evaluate('new Set(twinSlots.map(s=>s.id)).size'),2);
+assert.equal(evaluate('teams.every(t=>t.members.length===1)'),true);
+assert.equal(evaluate('lockedPlayerCount(teams)'),0);
+assert.equal(evaluate('new Set(teams.flatMap(t=>t.members.map(m=>m.charId))).size'),2);
+assert(evaluate('quickSpecPicker(players[0])').includes('Guardian · 2'));
+evaluate(`addingClassFor='twin'`);
+assert(evaluate('quickSpecPicker(players[0])').includes('add another'));
+evaluate(`let sameChar=runs.map(t=>({...t,members:[{id:'twin',name:'Twin',c:'Guardian',spec:'Blue',role:'Tank',charId:twinSlots[0].id}]}));`);
+assert.equal(evaluate('lockedPlayerCount(sameChar)'),1);
+console.log('Passed: duplicate same-class roster characters are distinct for locks and soft-lock tracking.');

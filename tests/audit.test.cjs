@@ -21,9 +21,9 @@ e(`runs=runs.slice(0,1);template.Healer=[0,0];template.Buffer=[0,1];players=[{id
 e(`lockPriority='quality';teams=assign(runs)`);assert.equal(e('teams[0].members[0].c'),'Captain');assert(!e('recommendationEligibility(teams).eligible'));
 e(`lockPriority='gearing';teams=assign(runs)`);assert.equal(e('teams[0].members[0].c'),'Brawler');assert(e('recommendationEligibility(teams).eligible'));
 e(`lockPriority='gearing';teams=assign(runs)`);assert.equal(e('teams[0].members[0].c'),'Brawler');
-// No recommendation or apply when even one required role cannot be fielded.
+// No recommendation card or apply when hard requirements cannot justify a different schedule.
 e(`template.Healer=[1,1];lockPriority='gearing';teams=assign(runs);dirty=false;recommendedConfiguration=findRecommendedConfiguration(teams,200);let before=JSON.stringify(runs);applyRecommendedConfiguration()`);
-assert(!e('recommendedConfiguration.eligible'));assert.equal(e('JSON.stringify(runs)'),e('before'));assert(e('recommendedConfigurationHTML().includes("No checked configuration")'));
+assert.equal(e('recommendedConfiguration'),null);assert.equal(e('JSON.stringify(runs)'),e('before'));assert.equal(e('recommendedConfigurationHTML()'),'');
 // Neutral classes are ordinary choices, even when a different class is starred.
 e(`constraints=[];template.Healer=[0,0];template.Buffer=[0,0];let neutral={...players[0],c:'Brawler',spec:'Red',role:'DPS'};players[0].preferredClasses=['Captain'];teams=[{...runs[0],members:[neutral]}]`);
 assert.equal(e('assignmentNotes(neutral,teams[0]).length'),0);
