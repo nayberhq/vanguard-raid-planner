@@ -14,3 +14,6 @@ assert.equal(ui.recommendations.length,1);let expiry=[...timers.values()][0];ass
 bounded.onmessage({data:{...result,teams:['stale']}});assert.equal(ui.teams.length,2);
 vm.runInContext('generateTeams()',ui);let completed=workers.at(-1);completed.onmessage({data:{type:'teams_ready',teams:result.teams}});completed.onmessage({data:result});assert.equal(timers.size,0);
 console.log('Passed: teams visible before optional checks, watchdog cutoff preserves results, stale completion ignored, timer cleared on success.');
+// Main generation has its own watchdog before any teams-ready checkpoint.
+vm.runInContext('generateTeams()',ui);let mainTimeoutWorker=workers.at(-1);let mainExpiry=[...timers.values()][0];assert(mainExpiry);mainExpiry();assert(mainTimeoutWorker.terminated);assert(ui.dirty);assert.equal(ui.teams.length,2);assert(!els.planningbusy.open);mainTimeoutWorker.onmessage({data:{...result,teams:['stale after timeout']}});assert.equal(ui.teams.length,2);
+console.log('Passed: initial-generation watchdog retains previous teams and ignores late results.');

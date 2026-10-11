@@ -1,70 +1,54 @@
-# How team selection works
+# Team selection specification
 
-## Inputs and eligibility
+## Eligibility and required composition
 
-Each selected class/spec supplies its native role. Role priorities rank only class/specs eligible for that role; they do not change roles, add staffing requirements, or exclude a spec. Event-specific signup choices, selected specs and run availability determine the candidate choices. Each player can occupy only one spot in a team and cannot attend overlapping runs. Team and fellowship capacity are strict.
+Players must be available, have the selected playable class/spec enabled, occupy at most one spot per raid, and never attend overlapping runs. Raid capacity is strict. Fellowships hold at most six players. Changing spec does not unlock a character: repeat identity is player ID plus class.
 
-Role assignments describe required/preferred coverage and placement. Their derived role counts are an initial staffing guide, not a replacement for detailed validation. Class/spec overrides change provider reach; they add no staffing demand and remove no requirement. A presence requirement can share a role slot with the same player.
+Required composition comes first in **every mode**. It includes filling selected raids, minimum role staffing, required role assignments, class/spec presence assignments, and required fellowship placement. If no complete composition is found, return the closest eligible schedule and flag missing requirements. A bounded search failure is not proof of infeasibility.
 
-## Repeat-character policy
+Role assignments and targeting overrides determine coverage and placement. Overrides add no staffing demand and remove no requirements. A player can meet compatible healer/class-presence requirements. Unspecified providers can move freely; no class has a hidden tank/DPS-group placement rule.
 
-New and legacy sessions default to **Prioritize locks** (stored as `unlocked`). The three lexicographic orders are:
+## Mode order
 
-- **Prioritize comp:** required comp → player preferences + escalating repeats → preferred comp → additional constraints.
-- **Prioritize locks:** escalating repeats → required comp → additional constraints.
-- **Prioritize perfect:** required comp → additional constraints → escalating repeats.
+The shared `selectionObjective` compares numeric vectors lexicographically. A lower level cannot outweigh a worse higher level.
 
-Comp includes empty spots, minimum role staffing and required fellowship assignments. Additional constraints include heal cut, CDs and other rules from that card; required deficits precede preferred deficits within this component. In comp mode, the joint preference/lock cost is player class preference cost plus 100,000 times the escalating repeat metric. Players with no class preference have zero preference cost. Preferred comp includes preferred role staffing, excess role staffing, soft fellowship goals and role priorities. Player coverage and remaining soft quality follow the selected ordering. Run recommendations treat roster coverage as a planning goal immediately after required comp, so they do not shrink the schedule just to exclude players with less convenient preferences. Eligibility, overlapping attendance and capacity are always enforced. All unmet requirements remain flagged. The policy is saved in sessions and sent to the background worker.
+| Mode | Order |
+|---|---|
+| Prioritize comp | Required comp → player preferences + locks → preferred comp → additional constraints |
+| Prioritize locks | Required comp → locks → player preferences → preferred comp → additional constraints |
+| Prioritize perfect | Required comp → preferred comp → additional constraints → player preferences + locks |
 
-Locks-first mode also uses a global maximum-flow fresh-character allocation for sequential schedules when the greedy fresh attempt leaves empty spots. It reserves each player/class at most once across the schedule and chooses specs afterwards. This avoids earlier runs stranding later runs. Overlapping schedules use the existing conflict-aware allocator. Local improvement and final repair have time budgets; exact optimality is not guaranteed.
+Within additional constraints, required deficits precede preferred deficits. After these mode levels, all modes consider uncovered players, balanced partial team sizes, duplicate classes, and participation evenness.
 
-## Search stages
+Player preferences are class-level stars: prioritized, neutral, or deprioritized. Prioritized selections cost zero; neutral selections cost 1,000 only when the player has other prioritized classes; deprioritized selections cost 2,000. No preferences means zero cost. Neutral selections produce no abnormal-choice note. List order is not a preference.
 
-The planner first searches with repeated player/class assignments excluded. Confirmed and tentative signups participate in the same normal selection pool. Confirmed substitute suggestions are checked independently for tentative assignments. Only unresolved required deficits or empty spots open a repeat-allowed fallback. Each stage retains the best fully evaluated result; failing a bounded fresh search is not proof of infeasibility.
+Repeat cost sums squared prior appearances of each player/class: 0, 1, 4, 9, etc. Comp/perfect mode combines player preference cost with 100,000 times this repeat metric. Locks mode compares repeats separately before preferences. Avoiding a repeat therefore outweighs a single missed preference, and subsequent repeats grow increasingly expensive.
 
-1. Initial allocation proceeds through runs. A minimum-cost flow selects player/class/spec choices and fills role slots, strongly favoring minimums, then preferred staffing. Future role supply influences preferred staffing to reduce early overconsumption.
-2. Local team improvement evaluates single replacements and a bounded shortlist of paired character changes. Scores include roles, constraints, class variety, repeats and preferences.
-3. Parallel balancing exchanges members and selected alts between simultaneous groups.
-4. Schedule-wide repair considers replacements and exchanges across runs, checks eligibility/conflicts, and uses final fellowship and rule evaluation. Its objective compares these levels in order: summed required deficits (including empty spots and role shortages), escalating repeated-character penalty, uncovered player count, composition/preferences, then squared participation counts for evenness. Tentative status carries no selection penalty. Later levels cannot compensate for a worse earlier level.
-5. Alternate starts allow a temporarily worse layout and repair it, but retain it only if its final objective improves. Enumeration, shortlist sizes and pass counts are bounded.
-6. Final annotation resolves fellowships, evaluates constraints and marks each team valid/incomplete. Recommended extra/parallel runs use lighter allocation; their feasibility is checked, but their search does not receive the full schedule repair pass until scheduled.
+Preferred comp includes preferred role staffing, surplus staffing penalties, soft fellowship assignments, and role class/spec priorities. Only the first selected copy of a prioritized class/spec gets its role-priority bonus per raid; additional copies receive ordinary cost and duplicate-class penalties.
 
-## Current soft weights
+## Search stages and efficiency
 
-These are internal costs, not hard bans. Initial/local stages and parallel balancing use weighted sums; the final schedule repair separates required deficits and repeated characters before coverage and softer goals.
+1. A minimum-cost flow builds a seed, strongly favoring minimum roles and reserving future role supply where practical. Its weighted cost is an inexpensive seed heuristic, not the acceptance policy.
+2. Local replacements and paired character changes use the shared mode objective, actual fellowship placement and rule validation. Previously selected runs inform schedule-wide constraints and character repeat cost.
+3. A global maximum-flow fresh-character seed can redistribute selected player/classes across sequential runs when required comp is unresolved. Its indexed graph connects each character only to that player's available runs. Overlapping schedules use conflict-aware allocation instead.
+4. Repeat-allowed seeds are introduced when required comp remains unresolved. Perfect mode can additionally consider repeats to improve preferred comp or additional constraints. Keep the best fully evaluated schedule, not the last attempted seed.
+5. Global repair considers replacements and cross-run exchanges, enforces availability/overlap/capacity, and evaluates the same objective. Candidate enumeration is bounded by both time and count, with quotas across runs and a mixed shortlist for seed quality, constraints and fresh characters. Alternative starts can cross temporarily worse layouts, but the retained result must improve the full objective.
+6. Final annotation resolves fellowships and validates all rules. Lightweight parallel checks use bounded exchanges with the same objective.
 
-| Item | Cost |
-|---|---:|
-| Ordinary required role shortage | 10,000,000 per missing role; squared in parallel balancing |
-| Required detailed rule deficit | 100,000,000 times deficit in local/fellowship search |
-| Above preferred role staffing | 250,000 times squared excess |
-| Same player's same-class repeats | 100,000 × prior appearances of that player/class; final repeat objective sums the squared prior counts (0, 1, 4, 9…) |
-| Earlier appearances | 50,000 each in initial/local selection |
-| Duplicate classes | 30,000 times squared duplicates beyond the first |
-| Missing preferred role slots | 6,000 each; squared in parallel balancing |
-| Preferred detailed constraints | 4,000 times deficit |
-| Nonpreferred player class | 1,000 each |
-| Role priority tier | First selected copy 0; additional or unselected copies 100 |
-| Signup choice order | No preference cost; deterministic ties only |
+The overall improvement budget is six seconds per normal assignment, with smaller budgets for optional checks. Local improvement is normally limited to 250 ms per team; global repair to 1.5 seconds within the overall budget. These are cooperative bounds: an individual flow or validation already in progress can finish after the deadline. The UI worker has a separate 20-second generation watchdog that keeps previous teams on timeout. Optional work stops three seconds after teams become visible. Cancel terminates the worker, and edits invalidate late worker results.
 
-A player's class preference has greater individual weight than the maximum role-tier difference, but aggregate weighted preferences can trade off across an entire team. There is no strict separate player-preference tier in the final objective.
+Fellowship search uses the same ordering of required placement, preferred placement and additional constraints. Its layout tie-break favors DPS concentration and proximity to own-fellowship buffers. It has bounded passes and time, and its cache includes the selected mode. The cooldown shortlist/placement search uses a capacity estimate; final validation uses a greedy rotation simulation over the configured horizon.
 
-## Fellowship placement and constraint evaluation
+## Run recommendations
 
-Fellowships hold at most six players. Their search considers member exchanges, detailed role coverage/placement and per-fellowship constraints. Its soft layout cost favors DPS concentration and proximity to buffers that affect their own fellowship. Unspecified sources may move freely; raid-wide effects do not impose a hidden tank-group placement rule. Same/any/raid reach and overrides determine whether a provider can satisfy a target group.
+A candidate schedule must meet **all required comp** before it can be recommended in any mode. In perfect mode it must additionally meet preferred staffing/placement goals and every enabled additional constraint, including soft constraints. Role class/spec stars remain ranking preferences rather than introducing mandatory classes.
 
-Heal contribution rules combine eligible providers according to the configured addition, multiplication, highest-only and stacking-group settings. Cooldowns use a fast capacity estimate during candidate selection, then a greedy time simulation in final validation. A failed greedy rotation is not proof that no valid rotation exists.
+Among qualifying schedules, recommendations favor player coverage, then the selected mode's priorities, distinct playable characters and an earlier finish. Candidate count and time are bounded. New runs inherit last-run availability and tentative status. Recommendations use the same repeat policy as generation. Extra/parallel feasibility markers use the same eligibility gate.
 
-Required composition rules are validated goals, not filters that suppress all output. When constraints conflict or resources are insufficient, the planner returns the closest solution it found and flags the unmet rules. The search is heuristic and cannot guarantee a global optimum.
+If none of the checked configurations qualify, show that result rather than offering an invalid Apply action. It does not mean no possible configuration exists. Manual schedule buttons remain available to try other configurations. Applying a recommendation changes run settings; generation is separate.
 
-Roster class preferences are binary: starred classes are first choice, unstarred classes second choice. Signup/spec list order has no score weight. Multiple classes may share first choice; all playable specs of that class share its preference.
+## Limits
 
-## Recommended run configurations
+This is a bounded heuristic, not an exact optimizer. Weighted seeds, candidate pruning, limited alternate starts and cooperative deadlines can miss the global optimum. Future availability supply is estimated rather than solved jointly with every role/constraint. Cooldown simulation is greedy and assumes abilities ready at the start. Its failure does not prove no rotation exists.
 
-After generating the current schedule, a bounded background check compares sequential and parallel templates. It follows the selected repeat-character policy, then favors coverage, distinct player/class assignments and an earlier finish. The card reports the best configuration checked, not a globally optimal guarantee. Applying it updates runs and copies last-run availability for new runs; generation is a separate action.
-
-## Uploaded session diagnostic, 2026-10-11
-
-The five-run, 23-player session has 60 spots and 67 selected player/class combinations. Its saved schedule contains 9 repeated assignments across 8 players. A separate integer-program feasibility check of role minima and additive capped heal-cut contribution found a minimum of 2 repeated assignments; that resulting schedule passed the planner’s complete fellowship and constraint validation with all five raids valid. With heal cut removed, the same feasibility model could fill all 60 spots without repeats. These are diagnostics, not a solver added to the website.
-
-The new unlocked allocation was replayed on this session: all 60 spots filled with zero repeated player/classes, with unmet healer/debuffer/heal-cut goals explicitly flagged. Comp-first heuristic search remains bounded and can use more repeats than the theoretical minimum.
+Priority adherence means that an accepted evaluated improvement follows the shared ordering; it does not guarantee that the bounded search discovers every possible higher-priority improvement. All unmet configured requirements remain visible even when the selected mode intentionally gives them lower priority.
