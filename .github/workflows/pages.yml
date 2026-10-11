@@ -50,8 +50,11 @@ jobs:
           node --check public/search.js
           node --check public/background.js
           node --check public/planner-worker.js
+          node --check public/session-recovery.js
+          node --check public/builtin-templates.js
           node tests/planner.test.cjs
           node tests/background.test.cjs
+          node tests/audit.test.cjs
 
       - name: Class icons present
         run: |
