@@ -208,3 +208,6 @@ const builtinPlannerTemplates={
 };
 function seedBuiltinPlannerTemplates(){let seeded;try{seeded=JSON.parse(localStorage.getItem('vanguard-builtin-template-seeds')||'[]')}catch{seeded=[]}if(!Array.isArray(seeded))seeded=[];for(let [kind,list] of Object.entries(builtinPlannerTemplates)){for(let t of list){let key=kind+':'+t.name;if(seeded.includes(key))continue;let library=kind==='roles'?roleTemplates:constraintTemplates;if(!library.some(existing=>existing.name===t.name)){let copy=JSON.parse(JSON.stringify(t));if(kind==='roles')validateFellowshipSetup(copy.setup);else validateRules([copy.rule]);library.push(copy)}seeded.push(key)}}persistRoleTemplates();persistConstraintTemplates();localStorage.setItem('vanguard-builtin-template-seeds',JSON.stringify(seeded))}
 seedBuiltinPlannerTemplates();
+// Start new plans with the bundled raid assignments. Saved sessions replace these on restore.
+function applyDefaultRaidOnStartup(){if(players.length||hasGenerated||activeTemplateName||fellowshipSetup.rules.length)return false;let preset=builtinPlannerTemplates.roles.find(t=>t.name==='Default raid');if(!preset)return false;fellowshipSetup=normalizeFellowshipSetup(JSON.parse(JSON.stringify(preset.setup)));activeTemplateName=preset.name;syncUnifiedRoles();dirty=true;render();return true}
+applyDefaultRaidOnStartup();

@@ -111,3 +111,13 @@ assert.equal(JSON.parse(storage['vanguard-session-recovery-v1']).session.players
 evaluate('recoverBrowserSession()');assert.equal(evaluate('players.length'),1);
 assert.equal(evaluate('recoveryPending'),null);
 console.log('Passed: actionable shortage candidates including disabled specs, availability/overlap filtering, undo, local recovery and pending-recovery protection.');
+evaluate(`players=[];size=12;hasGenerated=false;activeTemplateName='';fellowshipSetup=emptyFellowshipSetup();let appliedDefault=applyDefaultRaidOnStartup();`);
+assert.equal(evaluate('appliedDefault'),true);
+assert.equal(evaluate('activeTemplateName'),'Default raid');
+assert(evaluate(`fellowshipSetup.rules.some(r=>r.role==='Healer'&&r.target==='each')`));
+assert.equal(evaluate('template.Healer[1]'),2);
+evaluate(`let chosenDefaultSession=compactSessionSnapshot();chosenDefaultSession.fellowshipSetup.rules=[];chosenDefaultSession.templateName='Custom';restoreSession(chosenDefaultSession);`);
+assert.equal(evaluate('applyDefaultRaidOnStartup()'),false);
+assert.equal(evaluate('activeTemplateName'),'Custom');
+assert.equal(evaluate('fellowshipSetup.rules.length'),0);
+console.log('Passed: default raid assignments applied to new plans; custom restored session remains authoritative.');
