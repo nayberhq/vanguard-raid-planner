@@ -143,3 +143,10 @@ assert(evaluate(`isCharacterSoftLocked('gold','Hunter')`));assert(!evaluate(`isC
 assert.equal((evaluate('quickSpecPicker(players[0])').match(/class="spec-toggle chosen softlocked"/g)||[]).length,1);
 assert(evaluate('quickSpecPicker(players[0])').includes('Soft locked: this character is assigned to multiple runs'));
 console.log('Passed: gold borders mark the repeated player/class spec only, with explanatory tooltip.');
+evaluate(`players=[{id:'note',name:'Note',available:[true,true],max:2,preferredClasses:['Hunter'],deprioritizedClasses:['Captain'],tentativeRuns:[true,true],choices:[{c:'Captain',spec:'Red',role:'Buffer'}]}];template.Buffer=[1,1];rolePriorities={Buffer:{'Captain|Red':2}};let abnormal={id:1,source:0,time:18,label:'Example',members:[{id:'note',name:'Note',c:'Captain',spec:'Red',role:'Buffer'},{id:'other',name:'Other',c:'Captain',spec:'Red',role:'Buffer'}],shortages:[{role:'Healer',count:1}],constraintResults:[{name:'Heal cut',strength:'hard',pass:false,detail:'60 / 100%'}]};teams=[abnormal,{...abnormal,id:2,source:1,members:abnormal.members.slice(0,1)}];`);
+for(let phrase of ['Soft locked','Duplicate class','Tentative fallback','Deprioritized class','Deprioritized for buffer','Extra buffer'])assert(evaluate('assignmentNotesHTML(abnormal.members[0],abnormal)').includes(phrase));
+assert(evaluate('teamArtifactNotesHTML(abnormal)').includes('Missing 1 healer'));
+assert(evaluate('teamArtifactNotesHTML(abnormal)').includes('Unmet Heal cut'));
+evaluate(`let ordinary={id:'normal',name:'Normal',c:'Hunter',spec:'Red',role:'DPS'};players.push({...ordinary,available:[true],max:1,choices:[{c:'Hunter',spec:'Red',role:'DPS'}]});let normalRaid={id:3,source:0,members:[ordinary]}`);
+assert.equal(evaluate('assignmentNotesHTML(ordinary,normalRaid)'), '');
+console.log('Passed: per-assignment artifact notes, comp shortage/constraint explanations, and clean ordinary selections.');
