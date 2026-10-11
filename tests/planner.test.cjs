@@ -232,3 +232,67 @@ assert.equal(evaluate('unlockMetrics.repeats'),0);
 assert.equal(evaluate('unlockMetrics.comp'),0);
 assert(evaluate('scheduleFeasible(teams)&&teams.every(t=>t.members.length===size)'));
 console.log('Passed: unlocked alternates replace repeated characters without breaking required comp.');
+// Raid-Helper append merges into existing character slots and adds new players.
+evaluate(`lockPriority='gearing';size=6;constraints=[];fellowshipSetup=emptyFellowshipSetup();rolePriorities={};template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};runs=[{id:1,source:0,time:18,label:'Run 1'}];players=[{id:'111',name:'Alice',available:[true],max:4,choices:[{c:'Hunter',spec:'Red',role:'DPS'}],signupClasses:['Hunter']}];ensureRosterCharacters();rhApplyMode='append';setRHEvents([{signUps:[{userId:'111',name:'Alice',className:'Captain',cSpecName:'Red'},{userId:'222',name:'Bob',className:'Guardian',cSpecName:'Blue'},{userId:333,name:'Num',className:'Champion',cSpecName:'Red'}]}]);applyRH();`);
+assert.equal(evaluate('players.length'),3);
+assert.equal(evaluate(`players.find(p=>p.id==='111').signupCharacters.map(s=>s.c).sort().join(',')`),'Captain,Hunter');
+assert(evaluate(`players.find(p=>p.id==='111').choices.some(c=>c.c==='Captain'&&c.spec==='Red'&&!c.flexible&&c.charId)`));
+assert(evaluate(`players.find(p=>p.id==='111').choices.filter(c=>c.c==='Captain').every(c=>c.charId&&players.find(p=>p.id==='111').signupCharacters.some(s=>s.id===c.charId))`));
+assert(evaluate(`players.find(p=>p.id==='222').choices.some(c=>c.c==='Guardian'&&c.spec==='Blue'&&!c.flexible&&c.charId)`));
+assert.equal(evaluate(`players.find(p=>p.id==='333').signupCharacters[0].c`),'Champion');
+evaluate(`players=[{id:'666',name:'Flex',available:[true],max:4,signupClasses:['Captain'],choices:[]}];ensureRosterCharacters();`);
+assert(evaluate(`players[0].choices.filter(c=>c.c==='Captain'&&c.flexible).length>=1`));
+evaluate(`rhApplyMode='append';setRHEvents([{signUps:[{userId:'666',name:'Flex',className:'Captain',cSpecName:'Red'}]}]);applyRH();`);
+assert(evaluate(`players.find(p=>p.id==='666').choices.some(c=>c.c==='Captain'&&c.spec==='Red'&&!c.flexible&&c.charId)`));
+evaluate(`players=[{id:'444',name:'BrokenAvail',max:4,choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}];delete players[0].available;rhApplyMode='append';setRHEvents([{signUps:[{userId:'555',name:'New',className:'Burglar',cSpecName:'Yellow'}]}]);applyRH();`);
+assert.equal(evaluate('players.length'),2);
+assert(evaluate(`players.every(p=>Array.isArray(p.available)&&p.available.length)`));
+console.log('Passed: Raid-Helper append updates existing slots with charIds, adds players, fills empty class slots, and tolerates missing availability.');
+// New-player concentration helper and soft distribution objectives.
+assert.equal(evaluate(`newPlayerConcentration([[{id:'a'},{id:'b'}],[{id:'c'},{id:'d'}]],12,new Set(['a','b','c','d']))`),evaluate('8/12'));
+assert(evaluate(`newPlayerConcentration([[{id:'a'},{id:'b'},{id:'c'}],[{id:'d'}]],12,new Set(['a','b','c','d']))>newPlayerConcentration([[{id:'a'},{id:'b'}],[{id:'c'},{id:'d'}]],12,new Set(['a','b','c','d']))`));
+assert(evaluate(`newPlayerConcentration([[{id:'a'},{id:'b'}],[{id:'c'},{id:'d'},{id:'e'},{id:'f'}]],[12,24],new Set(['a','b','c','d','e','f']))<newPlayerConcentration([[{id:'a'},{id:'b'},{id:'c'}],[{id:'d'},{id:'e'},{id:'f'}]],[12,24],new Set(['a','b','c','d','e','f']))`));
+assert.equal(evaluate(`newPlayerConcentration([[{id:'a'}]],0,new Set(['a']))`),0);
+assert.equal(evaluate(`newPlayerConcentration([[{id:'a'},{id:'a'}]],12,new Set(['a']))`),evaluate('1/12'));
+evaluate(`lockPriority='gearing';size=6;duration=1;constraints=[];fellowshipSetup=emptyFellowshipSetup();rolePriorities={};template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};let np=(id,mark)=>({id,name:id,max:1,available:[true],isNewPlayer:!!mark,choices:[{c:'Hunter',spec:'Red',role:'DPS'},{c:'Champion',spec:'Red',role:'DPS'},{c:'Burglar',spec:'Red',role:'DPS'}]});players=[np('n0',true),np('n1',true),np('n2',true),np('n3',true),np('o0',false),np('o1',false),np('o2',false),np('o3',false),np('o4',false),np('o5',false),np('o6',false),np('o7',false)];runs=[{id:1,source:0,time:18,label:'A'},{id:2,source:0,time:18,label:'B'}];teams=assign(runs);`);
+assert.equal(evaluate('teams.length'),2);
+assert.equal(evaluate(`teams.map(t=>t.members.filter(m=>isNewPlayerMarked(m)).length).sort().join(',')`),'2,2');
+assert(evaluate('scheduleFeasible(teams)'));
+evaluate(`players=players.slice(0,11);players[0].isNewPlayer=players[1].isNewPlayer=players[2].isNewPlayer=true;for(let i=3;i<players.length;i++)delete players[i].isNewPlayer;teams=assign(runs);let split=teams.map(t=>t.members.filter(m=>isNewPlayerMarked(m)).length).sort();`);
+assert.equal(evaluate('split.join(",")'),'1,2');
+// Objective prefers covering more newcomers before concentration.
+evaluate(`players.forEach((p,i)=>{if(i<4)p.isNewPlayer=true;else delete p.isNewPlayer});let coverMore=scheduleMetrics([{id:1,source:0,time:18,members:players.slice(0,4).map(p=>({...p,...p.choices[0]}))},{id:2,source:0,time:18,members:players.slice(4,8).map(p=>({...p,...p.choices[0]}))}]);let coverLess=scheduleMetrics([{id:1,source:0,time:18,members:players.slice(0,2).map(p=>({...p,...p.choices[0]}))},{id:2,source:0,time:18,members:players.slice(4,8).map(p=>({...p,...p.choices[0]}))}]);`);
+assert(evaluate('betterSchedule(selectionObjective(coverMore),selectionObjective(coverLess))'));
+assert(evaluate('betterSchedule(selectionObjective(scheduleMetrics([{id:1,source:0,time:18,members:[players[0],players[1],players[4],players[5],players[6],players[7]].map(p=>({...p,...p.choices[0]}))},{id:2,source:0,time:18,members:[players[2],players[3],players[8],players[9],players[10],players[6]].map(p=>({...p,...p.choices[0]}))}])),selectionObjective(scheduleMetrics([{id:1,source:0,time:18,members:[players[0],players[1],players[2],players[4],players[5],players[6]].map(p=>({...p,...p.choices[0]}))},{id:2,source:0,time:18,members:[players[3],players[7],players[8],players[9],players[10],players[5]].map(p=>({...p,...p.choices[0]}))}])))'));
+// Fellowship partition spreads two newcomers 1/1 when setup is inactive.
+evaluate(`size=12;players=Array.from({length:12},(_,i)=>({id:'f'+i,name:'F'+i,available:[true],max:1,isNewPlayer:i<2,choices:[{c:['Hunter','Champion','Burglar','Warden','Captain','Guardian','Minstrel','Rune-keeper','Lore-master','Beorning','Mariner','Brawler'][i],spec:i===6||i===7?'Blue':'Red',role:i===5?'Tank':i===6||i===7?'Healer':i===4?'Buffer':'DPS'}]}));let fellowshipGroups=assignFellowships(players.map(p=>({...p,...p.choices[0]})));`);
+assert.equal(evaluate('fellowshipGroups.map(g=>g.filter(m=>isNewPlayerMarked(m)).length).sort().join(",")'),'1,1');
+// Sequential runs do not incur parallel concentration.
+evaluate(`let seq=[{id:1,source:0,time:18,members:players.slice(0,4).map(p=>({...p,...p.choices[0]}))},{id:2,source:1,time:20,members:players.slice(0,4).map(p=>({...p,...p.choices[0]}))}];`);
+assert.equal(evaluate('parallelNewPlayerConcentration(seq)'),0);
+assert(evaluate('parallelNewPlayerConcentration([{id:1,source:0,time:18,members:players.slice(0,4).map(p=>({...p,...p.choices[0]}))},{id:2,source:0,time:18,members:players.slice(4,8).map(p=>({...p,...p.choices[0]}))}])>0'));
+// Higher goals beat newcomer balance: required healer missing on balanced layout loses to uneven valid layout.
+evaluate(`size=1;template.Healer=[1,1];players=[{id:'healNew',name:'HN',max:1,available:[true],isNewPlayer:true,choices:[{c:'Minstrel',spec:'Blue',role:'Healer'}]},{id:'dpsNew',name:'DN',max:1,available:[true],isNewPlayer:true,choices:[{c:'Hunter',spec:'Red',role:'DPS'}]},{id:'dpsOld',name:'DO',max:1,available:[true],choices:[{c:'Champion',spec:'Red',role:'DPS'}]}];runs=[{id:1,source:0,time:18,label:'A'},{id:2,source:0,time:18,label:'B'}];let validUneven=[{...runs[0],members:[{...players[0],...players[0].choices[0]}]},{...runs[1],members:[{...players[1],...players[1].choices[0]}]}];let invalidBalanced=[{...runs[0],members:[{...players[1],...players[1].choices[0]}]},{...runs[1],members:[{...players[2],...players[2].choices[0]}]}];`);
+assert(evaluate('betterSchedule(scheduleObjective(validUneven),scheduleObjective(invalidBalanced))'));
+// Marker persistence: session, compact omit false, append/reimport, UI dirty.
+evaluate(`size=6;template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};players=[{id:'keep',name:'Keep',available:[true],max:1,isNewPlayer:true,choices:[{c:'Hunter',spec:'Red',role:'DPS'}]},{id:'plain',name:'Plain',available:[true],max:1,choices:[{c:'Champion',spec:'Red',role:'DPS'}]}];runs=[{id:1,source:0,time:18,label:'One'}];teams=[];hasGenerated=false;let packedNew=compactSessionSnapshot();`);
+assert.equal(evaluate('packedNew.players.find(p=>p.id==="keep").isNewPlayer'),true);
+assert.equal(evaluate('"isNewPlayer" in packedNew.players.find(p=>p.id==="plain")'),false);
+evaluate(`restoreSession(JSON.parse(JSON.stringify(packedNew)));`);
+assert.equal(evaluate('players.find(p=>p.id==="keep").isNewPlayer'),true);
+assert.throws(()=>evaluate(`validateSession({...compactSessionSnapshot(),players:[{id:'keep',name:'Keep',available:[true],max:1,isNewPlayer:'yes',choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}]})`));
+evaluate(`players.find(p=>p.id==='keep').isNewPlayer=true;rhApplyMode='append';setRHEvents([{signUps:[{userId:'keep',name:'Keep',className:'Burglar',cSpecName:'Red'},{userId:'fresh',name:'Fresh',className:'Warden',cSpecName:'Red'}]}]);applyRH();`);
+assert.equal(evaluate('players.find(p=>p.id==="keep").isNewPlayer'),true);
+assert.equal(evaluate('players.find(p=>p.id==="fresh").isNewPlayer'),undefined);
+evaluate(`rhApplyMode='replace';setRHEvents([{signUps:[{userId:'keep',name:'Keep',className:'Hunter',cSpecName:'Red'},{userId:'fresh',name:'Fresh',className:'Warden',cSpecName:'Red'}]}]);applyRH();`);
+assert.equal(evaluate('players.find(p=>p.id==="keep").isNewPlayer'),true);
+assert.equal(evaluate('!!players.find(p=>p.id==="fresh").isNewPlayer'),false);
+evaluate(`hasGenerated=true;teams=[{id:1,source:0,time:18,label:'One',members:[{id:'keep',name:'Keep',c:'Hunter',spec:'Red',role:'DPS'}]}];dirty=false;toggleNewPlayer('keep');`);
+assert.equal(evaluate('dirty'),true);
+assert.equal(evaluate('!!players.find(p=>p.id==="keep").isNewPlayer'),false);
+assert(evaluate('signupView()').includes('New player'));
+assert.equal(evaluate('newPlayerBadge(players.find(p=>p.id==="fresh"))'),'');
+evaluate(`players.find(p=>p.id==='fresh').isNewPlayer=true;`);
+assert(evaluate('newPlayerBadge(players.find(p=>p.id==="fresh"))').includes('New'));
+assert(evaluate('playerSummaryCard()').includes('newplayerbadge'));
+console.log('Passed: new-player concentration scoring, parallel 2/2 and 2/1 distribution, sequential independence, precedence over balance, and marker persistence.');

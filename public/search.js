@@ -1,16 +1,44 @@
 // Bounded schedule repair: never return a worse fully validated schedule.
 function scheduleFeasible(schedule){let characterSeen=new Set();if(noRepeatSearch)for(let t of schedule)for(let m of t.members){let key=characterKey(m);if(characterSeen.has(key))return false;characterSeen.add(key)}let occupied=new Map(),playerIndex=new Map(players.map(p=>[p.id,p]));for(let t of schedule){let ids=new Set();if(t.members.length>size)return false;for(let m of t.members){let p=playerIndex.get(m.id);if(!p||ids.has(m.id)||!availableForRun(p,t)||!choicesFor(p,t).some(c=>c.c===m.c&&c.spec===m.spec&&c.role===m.role&&(!m.charId||c.charId===m.charId)))return false;ids.add(m.id);let times=occupied.get(m.id)||[];if(times.some(time=>Math.abs(time-t.time)+1e-8<duration))return false;times.push(t.time);occupied.set(m.id,times)}}return true}
 function searchScheduleKey(schedule){return JSON.stringify(schedule.map(t=>[t.id,t.members.map(m=>[m.id,m.charId||'',m.c,m.spec,m.role]).sort()]))}
+function markedNewPlayerIds(){return new Set((players||[]).filter(p=>p&&p.isNewPlayer===true).map(p=>String(p.id)))}
+function isMarkedNewPlayer(id){return markedNewPlayerIds().has(String(id))}
+// Soft concentration: sum n[i]^2 / capacity[i] over groups. Uses intended capacity, not occupancy.
+function newPlayerConcentration(groups,capacity,markedIds=markedNewPlayerIds()){
+ if(!Array.isArray(groups)||!groups.length)return 0;
+ let penalty=0;
+ for(let i=0;i<groups.length;i++){
+  let cap=Array.isArray(capacity)?Number(capacity[i]):Number(capacity);
+  if(!Number.isFinite(cap)||cap<=0)continue;
+  let ids=new Set();
+  for(let m of groups[i]||[]){if(!m)continue;let id=String(m.id);if(markedIds.has(id))ids.add(id)}
+  let n=ids.size;penalty+=n*n/cap;
+ }
+ return penalty;
+}
+function parallelNewPlayerConcentration(schedule,markedIds=markedNewPlayerIds()){
+ let byTime=new Map();
+ for(let t of schedule||[]){let key=String(t.time);let list=byTime.get(key);if(!list)byTime.set(key,list=[]);list.push(t)}
+ let total=0;
+ for(let list of byTime.values()){if(list.length<2)continue;total+=newPlayerConcentration(list.map(t=>t.members),size,markedIds)}
+ return total;
+}
+function fellowshipNewPlayerConcentration(schedule,markedIds=markedNewPlayerIds()){
+ let total=0;
+ for(let t of schedule||[]){let fellowships=t.fellowships||[];if(fellowships.length<2)continue;total+=newPlayerConcentration(fellowships,6,markedIds)}
+ return total;
+}
 function scheduleMetrics(schedule,fast=false){
- let groups=schedule.map(t=>({...t,fellowships:assignFellowships(t.members,fast)})),checks=evaluateScheduleRules(groups,fast),deficit=r=>Math.max(1e-6,r.deficit??r.preferredDeficit??1),comp=checks.filter(r=>r.scope==='fellowship_setup'&&r.strength==='hard'&&!r.pass).reduce((n,r)=>n+deficit(r),0),constraintsHard=checks.filter(r=>r.scope!=='fellowship_setup'&&r.strength==='hard'&&!r.pass).reduce((n,r)=>n+deficit(r),0),constraintsSoft=checks.filter(r=>r.scope!=='fellowship_setup').reduce((n,r)=>n+(r.preferredDeficit??(r.strength==='soft'?r.deficit:0)??0),0),seen=new Map(),used=new Map(),preferredComp=checks.filter(r=>r.scope==='fellowship_setup').reduce((n,r)=>n+(r.preferredDeficit??(r.strength==='soft'?r.deficit:0)??0),0)*4000,repeats=0,playerPreferences=0,diversity=0;
- for(let t of schedule){comp+=Math.max(0,size-t.members.length);for(let [role,[min,pref]] of Object.entries(template)){let count=t.members.filter(m=>m.role===role).length;comp+=Math.max(0,min-count);preferredComp+=Math.max(0,pref-count)*6000+Math.pow(Math.max(0,count-Math.max(min,pref)),2)*250000}let counts={},prioritySeen=new Set();for(let m of t.members){counts[m.c]=(counts[m.c]||0)+1;let key=characterKey(m);repeats+=Math.pow(seen.get(key)||0,2);seen.set(key,(seen.get(key)||0)+1);used.set(m.id,(used.get(m.id)||0)+1);playerPreferences+=playerPreferenceCost(m,m.c);preferredComp+=rolePriorityCost(m,prioritySeen)}diversity+=Object.values(counts).reduce((n,v)=>n+Math.pow(Math.max(0,v-1),2)*30000,0)}
+ let marked=markedNewPlayerIds();
+ let groups=schedule.map(t=>({...t,fellowships:assignFellowships(t.members,fast)})),checks=evaluateScheduleRules(groups,fast),deficit=r=>Math.max(1e-6,r.deficit??r.preferredDeficit??1),comp=checks.filter(r=>r.scope==='fellowship_setup'&&r.strength==='hard'&&!r.pass).reduce((n,r)=>n+deficit(r),0),constraintsHard=checks.filter(r=>r.scope!=='fellowship_setup'&&r.strength==='hard'&&!r.pass).reduce((n,r)=>n+deficit(r),0),constraintsSoft=checks.filter(r=>r.scope!=='fellowship_setup').reduce((n,r)=>n+(r.preferredDeficit??(r.strength==='soft'?r.deficit:0)??0),0),seen=new Map(),used=new Map(),preferredComp=checks.filter(r=>r.scope==='fellowship_setup').reduce((n,r)=>n+(r.preferredDeficit??(r.strength==='soft'?r.deficit:0)??0),0)*4000,repeats=0,playerPreferences=0,diversity=0,coveredNew=new Set();
+ for(let t of schedule){comp+=Math.max(0,size-t.members.length);for(let [role,[min,pref]] of Object.entries(template)){let count=t.members.filter(m=>m.role===role).length;comp+=Math.max(0,min-count);preferredComp+=Math.max(0,pref-count)*6000+Math.pow(Math.max(0,count-Math.max(min,pref)),2)*250000}let counts={},prioritySeen=new Set();for(let m of t.members){counts[m.c]=(counts[m.c]||0)+1;let key=characterKey(m);repeats+=Math.pow(seen.get(key)||0,2);seen.set(key,(seen.get(key)||0)+1);used.set(m.id,(used.get(m.id)||0)+1);playerPreferences+=playerPreferenceCost(m,m.c);preferredComp+=rolePriorityCost(m,prioritySeen);if(marked.has(String(m.id)))coveredNew.add(String(m.id))}diversity+=Object.values(counts).reduce((n,v)=>n+Math.pow(Math.max(0,v-1),2)*30000,0)}
  let parallelBalance=schedule.reduce((n,t)=>n+Math.pow(size-t.members.length,2),0);
- return {parallelBalance,comp,constraintsHard,constraintsSoft,repeats,uncovered:uncovered(schedule).length,playerPreferences,preferredComp,quality:playerPreferences+preferredComp+diversity,diversity,uneven:players.reduce((n,p)=>n+Math.pow(used.get(p.id)||0,2),0)};
+ return {parallelBalance,comp,constraintsHard,constraintsSoft,repeats,uncovered:uncovered(schedule).length,playerPreferences,preferredComp,quality:playerPreferences+preferredComp+diversity,diversity,uneven:players.reduce((n,p)=>n+Math.pow(used.get(p.id)||0,2),0),newPlayerCoverage:coveredNew.size,newPlayerRaidConcentration:parallelNewPlayerConcentration(schedule,marked),newPlayerFellowshipConcentration:fellowshipNewPlayerConcentration(groups,marked)};
 }
 function scheduleHardDeficit(schedule){let m=scheduleMetrics(schedule);return m.comp+m.constraintsHard}
 // One policy definition for local improvement, global repair and recommendations.
 function selectionObjective(m){
- let tail=[m.uncovered,m.parallelBalance||0,m.diversity,m.uneven];
+ let tail=[m.uncovered,-(m.newPlayerCoverage||0),m.newPlayerRaidConcentration||0,m.newPlayerFellowshipConcentration||0,m.parallelBalance||0,m.diversity,m.uneven];
  if(lockPriority==='quality')return [m.comp,m.preferredComp,m.constraintsHard,m.constraintsSoft,m.playerPreferences+m.repeats*100000,...tail];
  return [m.comp,m.playerPreferences+m.repeats*100000,m.preferredComp,m.constraintsHard,m.constraintsSoft,...tail];
 }
