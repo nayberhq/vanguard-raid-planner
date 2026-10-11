@@ -142,7 +142,7 @@ evaluate(`players=[{id:'gold',name:'Gold',max:4,available:[true,true],signupClas
 assert(evaluate(`isCharacterSoftLocked('gold','Hunter')`));assert(!evaluate(`isCharacterSoftLocked('gold','Champion')`));
 assert.equal((evaluate('quickSpecPicker(players[0])').match(/class="spec-toggle chosen softlocked"/g)||[]).length,1);
 assert(evaluate('quickSpecPicker(players[0])').includes('Soft locked: this character is assigned to multiple runs'));
-console.log('Passed: gold borders mark the repeated player/class spec only, with explanatory tooltip.');
+console.log('Passed: silver borders mark the repeated player/class spec only, with explanatory tooltip.');
 evaluate(`players=[{id:'note',name:'Note',available:[true,true],max:2,preferredClasses:['Hunter'],deprioritizedClasses:['Captain'],tentativeRuns:[true,true],choices:[{c:'Captain',spec:'Red',role:'Buffer'}]}];template.Buffer=[1,1];rolePriorities={Buffer:{'Captain|Red':2}};let abnormal={id:1,source:0,time:18,label:'Example',members:[{id:'note',name:'Note',c:'Captain',spec:'Red',role:'Buffer'},{id:'other',name:'Other',c:'Captain',spec:'Red',role:'Buffer'}],shortages:[{role:'Healer',count:1}],constraintResults:[{name:'Heal cut',strength:'hard',pass:false,detail:'60 / 100%'}]};teams=[abnormal,{...abnormal,id:2,source:1,members:abnormal.members.slice(0,1)}];`);
 for(let phrase of ['Soft locked','Duplicate class','Tentative signup','Deprioritized class','Deprioritized for buffer','Extra buffer'])assert(evaluate('assignmentNotesHTML(abnormal.members[0],abnormal)').includes(phrase));
 assert(evaluate('teamArtifactNotesHTML(abnormal)').includes('Missing 1 healer'));
@@ -387,3 +387,16 @@ evaluate(`rhApplyMode='replace';setRHEvents([{signUps:[{userId:'lead1',name:'L1'
 assert.equal(evaluate('!!players.find(p=>p.id==="lead1").raidLeader'),true);
 assert.equal(evaluate('!!players.find(p=>p.id==="dps1").raidLeader'),false);
 console.log('Passed: raid-leader roster flag, hard-comp requirement, session and RH preserve.');
+
+// PNG export replaces individual Discord copy; markup is players + class icons + roles only.
+evaluate(`hasGenerated=true;dirty=false;size=2;template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};runs=[{id:1,source:0,time:18,label:'Alpha'},{id:2,source:1,time:19,label:'Beta'}];players=[{id:'pngA',name:'Alice',max:1,available:[true,true],raidLeader:true,experiencedClasses:['Guardian'],choices:[{c:'Guardian',spec:'Blue',role:'Tank'}]},{id:'pngB',name:'Bob',max:1,available:[true,true],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}];teams=[{...runs[0],members:[{id:'pngA',name:'Alice',c:'Guardian',spec:'Blue',role:'Tank'}],shortages:[{role:'Healer',count:1}]},{...runs[1],members:[{id:'pngB',name:'Bob',c:'Hunter',spec:'Red',role:'DPS'}]}];let pngView=teamView();let pngBoard=teamsPngMarkup();`);
+assert(evaluate('pngView.includes("Export PNG")&&pngView.includes("exportTeamsPng()")'));
+assert(!evaluate('pngView.includes("Copy individual runs")'));
+assert(evaluate('pngView.includes("Copy all runs")'));
+assert(evaluate('pngBoard.includes("Alice")&&pngBoard.includes("Bob")'));
+assert(evaluate('pngBoard.includes("classicon")&&pngBoard.includes("Alpha")&&pngBoard.includes("Beta")'));
+assert(evaluate('pngBoard.includes("role Tank")&&pngBoard.includes("role DPS")'));
+assert(!evaluate('pngBoard.includes("softlocked")||pngBoard.includes("expbadge")||pngBoard.includes("raidleaderbadge")||pngBoard.includes("Missing")||pngBoard.includes("shortage")||pngBoard.includes("Pacific")'));
+assert.equal(evaluate('typeof exportTeamsPng'),'function');
+console.log('Passed: Export PNG toolbar control and simplified teams PNG markup.');
+
