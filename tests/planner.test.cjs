@@ -222,4 +222,13 @@ evaluate(`addingClassFor='twin'`);
 assert(evaluate('quickSpecPicker(players[0])').includes('add another'));
 evaluate(`let sameChar=runs.map(t=>({...t,members:[{id:'twin',name:'Twin',c:'Guardian',spec:'Blue',role:'Tank',charId:twinSlots[0].id}]}));`);
 assert.equal(evaluate('lockedPlayerCount(sameChar)'),1);
+evaluate(`let tripleLock=[{members:[{id:'twin',c:'Guardian',charId:twinSlots[0].id}]},{members:[{id:'twin',c:'Guardian',charId:twinSlots[0].id}]},{members:[{id:'twin',c:'Guardian',charId:twinSlots[0].id}]}];`);
+assert.equal(evaluate('lockedPlayerCount(tripleLock)'),2);
 console.log('Passed: duplicate same-class roster characters are distinct for locks and soft-lock tracking.');
+// An unassigned confirmed alt takes a seat instead of repeating a locked character.
+evaluate(`lockPriority='quality';size=6;duration=1.5;constraints=[];fellowshipSetup=emptyFellowshipSetup();rolePriorities={};template={Tank:[1,1],Healer:[1,1],Debuffer:[0,1],Buffer:[0,1]};runs=[{id:1,source:0,time:18,label:'One'},{id:2,source:1,time:19.5,label:'Two'}];let unlockPlayer=(id,choices,extra={})=>({id,name:id,max:4,available:[true,true],choices:choices.map(([c,spec,role])=>({c,spec,role})),...extra});players=[unlockPlayer('u0',[['Captain','Yellow','Tank'],['Hunter','Yellow','Debuffer']]),unlockPlayer('u1',[['Burglar','Yellow','Debuffer']]),unlockPlayer('u2',[['Champion','Blue','Tank']]),unlockPlayer('u3',[['Captain','Blue','Healer']]),unlockPlayer('u4',[['Rune-keeper','Red','DPS']]),unlockPlayer('u5',[['Captain','Red','Buffer']]),unlockPlayer('u6',[['Brawler','Blue','Tank'],['Mariner','Blue','Buffer']],{available:[true,false]}),unlockPlayer('u7',[['Burglar','Red','DPS'],['Rune-keeper','Red','DPS']]),unlockPlayer('u9',[['Rune-keeper','Blue','Healer'],['Guardian','Red','DPS']],{preferredClasses:['Rune-keeper']})];teams=assign(runs);let unlockMetrics=scheduleMetrics(teams);lockPriority='gearing';`);
+assert.equal(evaluate('lockedPlayerCount(teams)'),0);
+assert.equal(evaluate('unlockMetrics.repeats'),0);
+assert.equal(evaluate('unlockMetrics.comp'),0);
+assert(evaluate('scheduleFeasible(teams)&&teams.every(t=>t.members.length===size)'));
+console.log('Passed: unlocked alternates replace repeated characters without breaking required comp.');
