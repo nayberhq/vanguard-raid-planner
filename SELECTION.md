@@ -8,9 +8,15 @@ Role assignments describe required/preferred coverage and placement. Their deriv
 
 ## Repeat-character policy
 
-New and legacy sessions default to **Prioritize unlocked**: fill spots first, then minimize escalating repeats, then required-comp deficits, coverage and soft quality. This can deliberately return teams with flagged required deficits. **Prioritize comp** keeps required deficits first, then repeats, coverage and soft quality. Both policies retain availability, one player per raid, overlap and capacity checks. The policy is saved in sessions and sent to the background worker.
+New and legacy sessions default to **Prioritize locks** (stored as `unlocked`). The three lexicographic orders are:
 
-Unlocked mode also uses a global maximum-flow fresh-character allocation for sequential schedules when the greedy fresh attempt leaves empty spots. It reserves each player/class at most once across the schedule and chooses specs afterwards. This avoids earlier runs stranding later runs. Overlapping schedules use the existing conflict-aware allocator. Local improvement and final repair have time budgets; exact optimality is not guaranteed.
+- **Prioritize comp:** required comp → escalating repeats → additional constraints.
+- **Prioritize locks:** escalating repeats → required comp → additional constraints.
+- **Prioritize perfect:** required comp → additional constraints → escalating repeats.
+
+Comp includes empty spots, minimum role staffing and required fellowship assignments. Additional constraints include heal cut, CDs and other rules from that card; required deficits precede preferred deficits within this component. Player coverage and soft preferences follow the selected ordering. Eligibility, overlapping attendance and capacity are always enforced. All unmet requirements remain flagged. The policy is saved in sessions and sent to the background worker.
+
+Locks-first mode also uses a global maximum-flow fresh-character allocation for sequential schedules when the greedy fresh attempt leaves empty spots. It reserves each player/class at most once across the schedule and chooses specs afterwards. This avoids earlier runs stranding later runs. Overlapping schedules use the existing conflict-aware allocator. Local improvement and final repair have time budgets; exact optimality is not guaranteed.
 
 ## Search stages
 
