@@ -8,23 +8,25 @@ Role assignments describe required/preferred coverage and placement. Their deriv
 
 ## Search stages
 
+The planner first searches with repeated player/class assignments excluded. It tries confirmed fresh characters, then tentative fresh characters if needed. Only unresolved required deficits or empty spots open a repeat-allowed fallback. Each stage retains the best fully evaluated result; failing a bounded fresh search is not proof of infeasibility.
+
 1. Initial allocation proceeds through runs. A minimum-cost flow selects player/class/spec choices and fills role slots, strongly favoring minimums, then preferred staffing. Future role supply influences preferred staffing to reduce early overconsumption.
 2. Local team improvement evaluates single replacements and a bounded shortlist of paired character changes. Scores include roles, constraints, class variety, repeats and preferences.
 3. Parallel balancing exchanges members and selected alts between simultaneous groups.
-4. Schedule-wide repair considers replacements and exchanges across runs, checks eligibility/conflicts, and uses final fellowship and rule evaluation. Its objective compares these levels in order: summed required deficits (including empty spots and role shortages), uncovered player count, weighted composition/preferences/repeats, then squared participation counts for evenness. Later levels cannot compensate for a worse earlier level.
+4. Schedule-wide repair considers replacements and exchanges across runs, checks eligibility/conflicts, and uses final fellowship and rule evaluation. Its objective compares these levels in order: summed required deficits (including empty spots and role shortages), escalating repeated-character penalty, uncovered confirmed player count, composition/preferences, then squared participation counts for evenness. With tentative players, tentative assignment count comes after repeats and before confirmed coverage. Later levels cannot compensate for a worse earlier level.
 5. Alternate starts allow a temporarily worse layout and repair it, but retain it only if its final objective improves. Enumeration, shortlist sizes and pass counts are bounded.
 6. Final annotation resolves fellowships, evaluates constraints and marks each team valid/incomplete. Recommended extra/parallel runs use lighter allocation; their feasibility is checked, but their search does not receive the full schedule repair pass until scheduled.
 
 ## Current soft weights
 
-These are internal costs, not hard bans. Initial/local stages and parallel balancing use weighted sums; the final schedule repair separates required deficits and coverage first.
+These are internal costs, not hard bans. Initial/local stages and parallel balancing use weighted sums; the final schedule repair separates required deficits and repeated characters before coverage and softer goals.
 
 | Item | Cost |
 |---|---:|
 | Ordinary required role shortage | 10,000,000 per missing role; squared in parallel balancing |
 | Required detailed rule deficit | 100,000,000 times deficit in local/fellowship search |
 | Above preferred role staffing | 250,000 times squared excess |
-| Same player's same-class repeats | 100,000; final schedule counts repeat pairs |
+| Same player's same-class repeats | 100,000 × prior appearances of that player/class; final repeat objective sums the squared prior counts (0, 1, 4, 9…) |
 | Earlier appearances | 50,000 each in initial/local selection |
 | Duplicate classes | 30,000 times squared duplicates beyond the first |
 | Missing preferred role slots | 6,000 each; squared in parallel balancing |
