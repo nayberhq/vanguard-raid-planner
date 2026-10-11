@@ -65,7 +65,7 @@ evaluate(`players=[{id:'binary',name:'Binary',available:[true],max:4,choices:[{c
 evaluate(`players=[{id:'sumA',name:'A',preferredClasses:['Warden']},{id:'sumB',name:'B'},{id:'sumC',name:'C',preferredClasses:['Hunter']}];teams=[{members:[{id:'sumA',name:'A',c:'Warden',spec:'Blue',role:'Tank'},{id:'sumB',name:'B',c:'Hunter',spec:'Red',role:'DPS'}]},{members:[{id:'sumA',name:'A',c:'Champion',spec:'Red',role:'DPS'}]}];let summaryRows=playerRunSummary();`);assert.equal(evaluate('summaryRows[0].runs'),2);assert.equal(evaluate('summaryRows[0].firstChoices'),1);assert.equal(evaluate('summaryRows[0].roles.Tank'),1);assert.equal(evaluate('summaryRows[0].roles.DPS'),1);assert.equal(evaluate('summaryRows[1].firstChoices'),null);assert.equal(evaluate('summaryRows[2].runs'),0);assert(!fs.readFileSync('public/app.js','utf8').includes('Choice #'));console.log('Passed: player summary counts runs, first-choice matches, roles played, no preference and unassigned players; obsolete choice numbers removed.');
 // Tentatives are reserves, not a preference or class-variety bonus.
 evaluate(`constraints=[];fellowshipSetup=emptyFellowshipSetup();template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};size=1;duration=1;runs=[{id:1,source:0,time:18,label:'One'},{id:2,source:1,time:19,label:'Two'}];players=[{id:'confirmed',name:'Confirmed',available:[true,true],choices:[{c:'Hunter',spec:'Red',role:'DPS'},{c:'Champion',spec:'Red',role:'DPS'}]},{id:'reserve',name:'Reserve',available:[true,true],tentativeRuns:[true,true],choices:[{c:'Burglar',spec:'Red',role:'DPS'}]}];teams=assign(runs);`);
-assert.equal(evaluate(`teams.flatMap(t=>t.members).filter(p=>p.id==='reserve').length`),0);
+assert.equal(evaluate(`teams.flatMap(t=>t.members).filter(p=>p.id==='reserve').length`),1);
 evaluate(`players[0].choices=players[0].choices.slice(0,1);teams=assign(runs);`);
 assert.equal(evaluate(`teams.flatMap(t=>t.members).filter(p=>p.id==='reserve').length`),1);
 assert.equal(evaluate(`lockedPlayerCount(teams)`),0);
@@ -144,7 +144,7 @@ assert.equal((evaluate('quickSpecPicker(players[0])').match(/class="spec-toggle 
 assert(evaluate('quickSpecPicker(players[0])').includes('Soft locked: this character is assigned to multiple runs'));
 console.log('Passed: gold borders mark the repeated player/class spec only, with explanatory tooltip.');
 evaluate(`players=[{id:'note',name:'Note',available:[true,true],max:2,preferredClasses:['Hunter'],deprioritizedClasses:['Captain'],tentativeRuns:[true,true],choices:[{c:'Captain',spec:'Red',role:'Buffer'}]}];template.Buffer=[1,1];rolePriorities={Buffer:{'Captain|Red':2}};let abnormal={id:1,source:0,time:18,label:'Example',members:[{id:'note',name:'Note',c:'Captain',spec:'Red',role:'Buffer'},{id:'other',name:'Other',c:'Captain',spec:'Red',role:'Buffer'}],shortages:[{role:'Healer',count:1}],constraintResults:[{name:'Heal cut',strength:'hard',pass:false,detail:'60 / 100%'}]};teams=[abnormal,{...abnormal,id:2,source:1,members:abnormal.members.slice(0,1)}];`);
-for(let phrase of ['Soft locked','Duplicate class','Tentative fallback','Deprioritized class','Deprioritized for buffer','Extra buffer'])assert(evaluate('assignmentNotesHTML(abnormal.members[0],abnormal)').includes(phrase));
+for(let phrase of ['Soft locked','Duplicate class','Tentative signup','Deprioritized class','Deprioritized for buffer','Extra buffer'])assert(evaluate('assignmentNotesHTML(abnormal.members[0],abnormal)').includes(phrase));
 assert(evaluate('teamArtifactNotesHTML(abnormal)').includes('Missing 1 healer'));
 assert(evaluate('teamArtifactNotesHTML(abnormal)').includes('Unmet Heal cut'));
 evaluate(`let ordinary={id:'normal',name:'Normal',c:'Hunter',spec:'Red',role:'DPS'};players.push({...ordinary,available:[true],max:1,choices:[{c:'Hunter',spec:'Red',role:'DPS'}]});let normalRaid={id:3,source:0,members:[ordinary]}`);
@@ -160,3 +160,16 @@ assert.equal(evaluate('teams[0].alternatives.maybe.choices.length'),0);
 evaluate(`teams=[{...runs[0],members:[{...players[0],...players[0].choices[0]}]},{id:2,source:0,time:20,members:[{...players[0],...players[0].choices[0]}]}]`);
 assert(evaluate('teamClassIcon(teams[0].members[0])').includes('classicon softlocked'));
 console.log('Passed: roster tentative badges, confirmed role-compatible backups, overlap exclusion and gold team icons for repeated characters.');
+// Tentative status carries no allocation penalty; alternatives remain confirmed.
+evaluate(`size=1;fellowshipSetup=emptyFellowshipSetup();constraints=[];template={Tank:[0,0],Healer:[1,1],Debuffer:[0,0],Buffer:[0,0]};rolePriorities={Healer:{'Minstrel|Blue':0}};runs=[{id:1,source:0,time:18,label:'One'}];players=[{id:'tentativeNormal',name:'Tentative',available:[true],max:1,tentativeRuns:[true],choices:[{c:'Minstrel',spec:'Blue',role:'Healer'}]},{id:'confirmedAlt',name:'Confirmed',available:[true],max:1,choices:[{c:'Rune-keeper',spec:'Blue',role:'Healer'}]}];teams=assign(runs);buildTentativeAlternatives(teams);`);
+assert.equal(evaluate('teams[0].members[0].id'),'tentativeNormal');
+assert.equal(evaluate('teams[0].alternatives.tentativeNormal.choices[0].id'),'confirmedAlt');
+assert(evaluate('tentativeAlternativeHTML(teams[0].members[0],teams[0])').includes('Rune-keeper'));
+// Enough people for two teams: propose parallel coverage and apply without generation.
+evaluate(`rolePriorities={};template.Healer=[0,0];size=6;players=Array.from({length:12},(_,i)=>({id:'config'+i,name:'Config '+i,max:1,available:[true],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}));runs=[{id:1,source:0,time:18,label:'One'}];teams=assign(runs);dirty=false;let proposed=findRecommendedConfiguration(teams,5000);`);
+assert.equal(evaluate('proposed.uniquePlayers'),12);
+assert.equal(evaluate('proposed.completeTeams'),2);
+assert.equal(evaluate('new Set(proposed.runs.map(r=>r.time)).size'),1);
+evaluate('applyRecommendedConfiguration()');assert.equal(evaluate('runs.length'),2);assert.equal(evaluate('dirty'),true);
+assert.equal(evaluate('teams.length'),1);
+console.log('Passed: tentative normal selection with confirmed icon alternate; recommended parallel run template and explicit apply-then-generate workflow.');
