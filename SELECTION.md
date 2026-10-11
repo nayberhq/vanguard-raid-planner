@@ -10,11 +10,11 @@ Role assignments describe required/preferred coverage and placement. Their deriv
 
 New and legacy sessions default to **Prioritize locks** (stored as `unlocked`). The three lexicographic orders are:
 
-- **Prioritize comp:** required comp → escalating repeats → additional constraints.
+- **Prioritize comp:** required comp → player preferences + escalating repeats → preferred comp → additional constraints.
 - **Prioritize locks:** escalating repeats → required comp → additional constraints.
 - **Prioritize perfect:** required comp → additional constraints → escalating repeats.
 
-Comp includes empty spots, minimum role staffing and required fellowship assignments. Additional constraints include heal cut, CDs and other rules from that card; required deficits precede preferred deficits within this component. Player coverage and soft preferences follow the selected ordering. Eligibility, overlapping attendance and capacity are always enforced. All unmet requirements remain flagged. The policy is saved in sessions and sent to the background worker.
+Comp includes empty spots, minimum role staffing and required fellowship assignments. Additional constraints include heal cut, CDs and other rules from that card; required deficits precede preferred deficits within this component. In comp mode, the joint preference/lock cost is player class preference cost plus 100,000 times the escalating repeat metric. Players with no class preference have zero preference cost. Preferred comp includes preferred role staffing, excess role staffing, soft fellowship goals and role priorities. Player coverage and remaining soft quality follow the selected ordering. Run recommendations treat roster coverage as a planning goal immediately after required comp, so they do not shrink the schedule just to exclude players with less convenient preferences. Eligibility, overlapping attendance and capacity are always enforced. All unmet requirements remain flagged. The policy is saved in sessions and sent to the background worker.
 
 Locks-first mode also uses a global maximum-flow fresh-character allocation for sequential schedules when the greedy fresh attempt leaves empty spots. It reserves each player/class at most once across the schedule and chooses specs afterwards. This avoids earlier runs stranding later runs. Overlapping schedules use the existing conflict-aware allocator. Local improvement and final repair have time budgets; exact optimality is not guaranteed.
 
