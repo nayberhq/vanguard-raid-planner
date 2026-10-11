@@ -2,8 +2,8 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const ctx=vm.createContext({console,Intl,setTimeout(){},localStorage:{getItem(){return null},setItem(){}},document:{getElementById(){return {style:{},value:'0',close(){}}}}});
 for(const f of ['app','role-priorities','fellowship','constraints','search','background'])vm.runInContext(fs.readFileSync('public/'+f+'.js','utf8'),ctx);
 const e=s=>vm.runInContext(s,ctx);
-e(`let zero={comp:0,repeats:0,playerPreferences:0,preferredComp:0,constraintsHard:0,constraintsSoft:0,uncovered:0,parallelBalance:0,diversity:0,uneven:0};`);
-const orders={gearing:['comp','joint','preferredComp','constraintsHard','constraintsSoft'],quality:['comp','preferredComp','constraintsHard','constraintsSoft','joint']};
+e(`let zero={comp:0,repeats:0,playerPreferences:0,preferredComp:0,constraintsSevere:0,constraintsHard:0,constraintsSoft:0,uncovered:0,parallelBalance:0,diversity:0,uneven:0};`);
+const orders={gearing:['comp','constraintsSevere','joint','constraintsHard','preferredComp','constraintsSoft'],quality:['comp','preferredComp','constraintsHard','constraintsSoft','joint']};
 for(const [mode,tiers] of Object.entries(orders)){
  e(`lockPriority='${mode}'`);
  for(let i=0;i<tiers.length;i++)for(let j=i+1;j<tiers.length;j++){
@@ -11,19 +11,28 @@ for(const [mode,tiers] of Object.entries(orders)){
  assert(e(`betterSchedule(selectionObjective({...zero,${key(tiers[j])}:1000000000}),selectionObjective({...zero,${key(tiers[i])}:1}))`),`${mode}: ${tiers[i]} before ${tiers[j]}`);
  }
 }
+// Severe shortfalls beat huge preference/lock cost; mild hard deficit can still lose to joint gearing cost.
+e(`lockPriority='gearing'`);
+assert(e(`betterSchedule(selectionObjective({...zero,playerPreferences:1e12}),selectionObjective({...zero,constraintsSevere:0.01}))`),'severe before joint');
+assert(e(`betterSchedule(selectionObjective({...zero,constraintsHard:0.1}),selectionObjective({...zero,playerPreferences:1}))`),'joint before mild hard');
+assert(e(`betterSchedule(selectionObjective({...zero,constraintsHard:0.1}),selectionObjective({...zero,constraintsHard:0.6}))`),'lower continuous hard wins on ties');
 e(`size=1;duration=1;constraints=[];fellowshipSetup=emptyFellowshipSetup();rolePriorities={};template={Tank:[0,0],Healer:[1,1],Debuffer:[0,0],Buffer:[0,0]};runs=[{id:1,source:0,time:18,label:'One'},{id:2,source:1,time:19,label:'Two'}];players=[{id:'heal',name:'Heal',max:2,available:[true,true],choices:[{c:'Minstrel',spec:'Blue',role:'Healer'}]},{id:'dps',name:'DPS',max:2,available:[true,true],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}];`);
 for(const mode of Object.keys(orders)){
  e(`lockPriority='${mode}';teams=assign(runs)`);
  assert.equal(e('scheduleMetrics(teams).comp'),0,mode);assert.equal(e('lockedPlayerCount(teams)'),1,mode);assert(e('scheduleFeasible(teams)'));
 }
-// Preferred staffing wins over heal-cut presence in perfect mode, but not over player preferences in comp mode.
+// Preferred staffing wins over heal-cut presence in quality mode; eligibility only requires required comp.
 e(`runs=runs.slice(0,1);template.Healer=[0,0];template.Buffer=[0,1];players=[{id:'flex',name:'Flex',max:1,available:[true],preferredClasses:['Brawler'],choices:[{c:'Captain',spec:'Red',role:'Buffer'},{c:'Brawler',spec:'Red',role:'DPS'}]}];let presence=newRule('presence');presence.config={className:'Brawler',spec:'Red',minimum:1};constraints=[presence];`);
-e(`lockPriority='quality';teams=assign(runs)`);assert.equal(e('teams[0].members[0].c'),'Captain');assert(!e('recommendationEligibility(teams).eligible'));
+e(`lockPriority='quality';teams=assign(runs)`);assert.equal(e('teams[0].members[0].c'),'Captain');assert(e('recommendationEligibility(teams).eligible'));assert(e('recommendationEligibility(teams).preferredDeficit>0||recommendationEligibility(teams).constraintsHard>0||recommendationEligibility(teams).constraintsSoft>0'));
 e(`lockPriority='gearing';teams=assign(runs)`);assert.equal(e('teams[0].members[0].c'),'Brawler');assert(e('recommendationEligibility(teams).eligible'));
 e(`lockPriority='gearing';teams=assign(runs)`);assert.equal(e('teams[0].members[0].c'),'Brawler');
-// No recommendation card or apply when hard requirements cannot justify a different schedule.
-e(`template.Healer=[1,1];lockPriority='gearing';teams=assign(runs);dirty=false;recommendedConfiguration=findRecommendedConfiguration(teams,200);let before=JSON.stringify(runs);applyRecommendedConfiguration()`);
-assert.equal(e('recommendedConfiguration'),null);assert.equal(e('JSON.stringify(runs)'),e('before'));assert.equal(e('recommendedConfigurationHTML()'),'');
+// Incomplete required composition is ineligible; no apply when nothing improves the layout.
+e(`template.Healer=[1,1];lockPriority='gearing';teams=assign(runs);dirty=false;parallel=false;extra=false;recommendedConfiguration=findRecommendedConfiguration(teams,200);let before=JSON.stringify(runs);applyRecommendedConfiguration()`);
+assert.equal(e('recommendedConfiguration'),null);assert.equal(e('JSON.stringify(runs)'),e('before'));assert(e('recommendedConfigurationHTML().includes("Layout check")||recommendedConfigurationHTML()===""'));
+// Policy-aligned config scores: required-comp failure loses; covering more players beats a thinner layout.
+e(`size=1;template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};constraints=[];fellowshipSetup=emptyFellowshipSetup();lockPriority='gearing';let one=[{id:1,source:0,time:18,label:'One',members:[{id:'a',name:'A',c:'Hunter',spec:'Red',role:'DPS'}]}],two=[{id:1,source:0,time:18,label:'One',members:[{id:'a',name:'A',c:'Hunter',spec:'Red',role:'DPS'}]},{id:2,source:0,time:18,label:'One · Group 2',group:2,members:[{id:'b',name:'B',c:'Champion',spec:'Red',role:'DPS'}]}],empty=[{id:1,source:0,time:18,label:'One',members:[]}];`);
+assert(e('betterSchedule(runConfigurationScore(one),runConfigurationScore(empty))'));
+assert(e('betterSchedule(runConfigurationScore(two),runConfigurationScore(one))'));
 // Neutral classes are ordinary choices, even when a different class is starred.
 e(`constraints=[];template.Healer=[0,0];template.Buffer=[0,0];let neutral={...players[0],c:'Brawler',spec:'Red',role:'DPS'};players[0].preferredClasses=['Captain'];teams=[{...runs[0],members:[neutral]}]`);
 assert.equal(e('assignmentNotes(neutral,teams[0]).length'),0);

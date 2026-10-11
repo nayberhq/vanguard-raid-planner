@@ -60,7 +60,7 @@ evaluate(`size=2;players=[{id:'hillA',name:'A',max:4,available:[true],choices:[{
 evaluate(`constraints=[];fellowshipSetup=emptyFellowshipSetup();template={Tank:[0,0],Healer:[1,1],Debuffer:[0,0],Buffer:[0,0]};size=6;duration=1;extra=false;parallel=false;runs=[{id:1,source:0,time:18,label:'Priority'}];players=[{id:'heal',name:'Healer',max:4,available:[true],choices:[{c:'Rune-keeper',spec:'Blue',role:'Healer'},{c:'Minstrel',spec:'Blue',role:'Healer'}]},...Array.from({length:5},(_,i)=>({id:'priorityD'+i,name:'D'+i,max:4,available:[true],choices:[{c:['Hunter','Champion','Burglar','Mariner','Warden'][i],spec:'Red',role:'DPS'}]}))];rolePriorities={Healer:{'Minstrel|Blue':0,'Rune-keeper|Blue':3}};generateTeams();`);assert.equal(evaluate('teams[0].members.find(p=>p.role==="Healer").c'),'Minstrel');evaluate(`players[0].preferredClasses=['Rune-keeper'];generateTeams()`);assert.equal(evaluate('teams[0].members.find(p=>p.role==="Healer").c'),'Rune-keeper');evaluate(`players[0].preferredClasses=[];let priorityConstraint=newRule('contribution_target');priorityConstraint.config.providers=[{name:'Required provider',className:'Rune-keeper',spec:'Blue',value:100}];constraints=[priorityConstraint];lockPriority='quality';generateTeams();lockPriority='gearing'`);assert.equal(evaluate('teams[0].members.find(p=>p.role==="Healer").c'),'Minstrel');assert(!evaluate('teams[0].valid'));evaluate(`rolePriorities={};lockPriority='quality';generateTeams();lockPriority='gearing'`);assert.equal(evaluate('teams[0].members.find(p=>p.role==="Healer").c'),'Rune-keeper');assert(evaluate('teams[0].valid'));evaluate(`rolePriorities={Healer:{'Minstrel|Blue':0}}`);console.log('Passed: role tiers follow preferred comp; player preferences precede them in comp mode; perfect mode requires preferred comp before constraints.');
 evaluate(`let prioritySession=compactSessionSnapshot();rolePriorities={};restoreSession(prioritySession)`);assert.equal(evaluate('rolePriorities.Healer["Minstrel|Blue"]'),0);evaluate(`document.getElementById('comptemplatename').value='Priority comp';saveCompTemplate();rolePriorities={};document.getElementById('savedcomp').value=String(compTemplates.length-1);applyCompTemplate()`);assert.equal(evaluate('rolePriorities.Healer["Rune-keeper|Blue"]'),undefined);evaluate(`validateCompTemplateList(compTemplates);let legacyPrioritySession=sessionSnapshot();delete legacyPrioritySession.rolePriorities;restoreSession(legacyPrioritySession)`);assert.equal(evaluate('Object.keys(rolePriorities).length'),0);assert.throws(()=>evaluate(`validateRolePriorities({Healer:{'Hunter|Red':0}})`));assert.throws(()=>evaluate(`validateRolePriorities({Healer:{'Minstrel|Blue':9}})`));evaluate(`setRolePriority('Healer','Minstrel','Blue',0);setRolePriority('Healer','Minstrel','Blue',2)`);assert.equal(evaluate('rolePriorities.Healer["Minstrel|Blue"]'),2);assert(evaluate('rolePriorityPanel().includes("Role priorities")'));console.log('Passed: priority session/comp round trips, neutral legacy defaults, eligible spec validation and reset.');
 evaluate(`rolePriorities={};let simplePriorityHTML=rolePriorityPanel();`);assert(!evaluate('simplePriorityHTML.includes("<select")'));assert.equal((evaluate('simplePriorityHTML').match(/role="group"/g)||[]).length,5);assert.equal(evaluate('rolePriorityCost({c:"Lore-master",spec:"Blue",role:"Buffer"})'),100);evaluate(`toggleRolePriority('Buffer','Lore-master','Blue')`);assert.equal(evaluate('rolePriorityCost({c:"Lore-master",spec:"Blue",role:"Buffer"})'),0);evaluate(`toggleRolePriority('Buffer','Lore-master','Blue')`);assert.equal(evaluate('rolePriorities.Buffer["Lore-master|Blue"]'),2);assert(evaluate('opts.some(c=>c.c==="Lore-master"&&c.spec==="Blue"&&c.role==="Buffer")'));assert(!evaluate('opts.some(c=>c.c==="Lore-master"&&c.spec==="Blue"&&c.role==="Debuffer")'));evaluate(`let oldLmSession=sessionSnapshot();oldLmSession.players[0].choices.push({c:'Lore-master',spec:'Blue',role:'Debuffer'});oldLmSession.players[0].eventChoices={0:[{c:'Lore-master',spec:'Blue',role:'Debuffer'}]};oldLmSession.rolePriorities={Debuffer:{'Lore-master|Blue':0},Healer:{'Minstrel|Blue':1}};restoreSession(oldLmSession)`);assert(evaluate('players[0].choices.some(c=>c.c==="Lore-master"&&c.spec==="Blue"&&c.role==="Buffer")'));assert.equal(evaluate('players[0].eventChoices[0][0].role'),'Buffer');assert.equal(evaluate('rolePriorities.Buffer["Lore-master|Blue"]'),0);assert.equal(evaluate('rolePriorities.Healer'),undefined);console.log('Passed: five icon-only priority rows, default none selected, binary toggle, blue Lore-master Buffer and legacy session/priority migration.');
-evaluate(`fellowshipSetup=emptyFellowshipSetup();constraints=[];template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};size=2;rolePriorities={DPS:{'Warden|Red':0}};let firstOnlyMembers=[member('oneW','Warden','Red','DPS'),member('twoW','Warden','Red','DPS')];let seenPriorities=new Set();let firstOnlyCosts=firstOnlyMembers.map(p=>rolePriorityCost(p,seenPriorities));let selectedScore=assignmentScore(firstOnlyMembers,{},{});let selectedBalance=scheduleMetrics([{id:1,time:18,members:firstOnlyMembers}]).preferredComp;let firstOnlySchedule=[{id:1,source:0,time:18,label:'One',members:firstOnlyMembers},{id:2,source:1,time:20,label:'Two',members:firstOnlyMembers}];players=firstOnlyMembers;let selectedSchedule=scheduleObjective(firstOnlySchedule);rolePriorities={};let ordinaryScore=assignmentScore(firstOnlyMembers,{},{}),ordinaryBalance=scheduleMetrics([{id:1,time:18,members:firstOnlyMembers}]).preferredComp,ordinarySchedule=scheduleObjective(firstOnlySchedule);`);assert.equal(evaluate('firstOnlyCosts.join(",")'),'0,100');assert.equal(evaluate('ordinaryScore-selectedScore'),100);assert.equal(evaluate('ordinaryBalance-selectedBalance'),100);assert.equal(evaluate('ordinarySchedule[2]-selectedSchedule[2]'),200);assert.equal(evaluate('ordinaryScore'),30202);evaluate(`rolePriorities={DPS:{'Warden|Red':0}};let firstOnlyPool=[member('aW','Warden','Red','DPS'),{id:'altW',name:'Alt',available:[true],max:4,choices:[{c:'Hunter',spec:'Red',role:'DPS'},{c:'Warden',spec:'Red',role:'DPS'}]}];let actualImprove=improveClassVariety;improveClassVariety=m=>m;let firstOnlySeed=fillTeam(firstOnlyPool,{id:1,source:0,time:18},{},{});improveClassVariety=actualImprove;`);assert.equal(evaluate('firstOnlySeed.members.filter(p=>p.c==="Warden").length'),1);console.log('Passed: priority bonus once per raid in flow allocation, local/parallel scores and schedule repair; normal duplicate penalty retained; separate raids each get one bonus.');
+evaluate(`lockPriority='gearing';fellowshipSetup=emptyFellowshipSetup();constraints=[];template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};size=2;rolePriorities={DPS:{'Warden|Red':0}};let firstOnlyMembers=[member('oneW','Warden','Red','DPS'),member('twoW','Warden','Red','DPS')];let seenPriorities=new Set();let firstOnlyCosts=firstOnlyMembers.map(p=>rolePriorityCost(p,seenPriorities));let selectedScore=assignmentScore(firstOnlyMembers,{},{});let selectedBalance=scheduleMetrics([{id:1,time:18,members:firstOnlyMembers}]).preferredComp;let firstOnlySchedule=[{id:1,source:0,time:18,label:'One',members:firstOnlyMembers},{id:2,source:1,time:20,label:'Two',members:firstOnlyMembers}];players=firstOnlyMembers;let selectedSchedule=scheduleObjective(firstOnlySchedule);rolePriorities={};let ordinaryScore=assignmentScore(firstOnlyMembers,{},{}),ordinaryBalance=scheduleMetrics([{id:1,time:18,members:firstOnlyMembers}]).preferredComp,ordinarySchedule=scheduleObjective(firstOnlySchedule);`);assert.equal(evaluate('firstOnlyCosts.join(",")'),'0,100');assert.equal(evaluate('ordinaryScore-selectedScore'),100);assert.equal(evaluate('ordinaryBalance-selectedBalance'),100);assert.equal(evaluate('ordinarySchedule[4]-selectedSchedule[4]'),200);assert.equal(evaluate('ordinaryScore'),30202);evaluate(`rolePriorities={DPS:{'Warden|Red':0}};let firstOnlyPool=[member('aW','Warden','Red','DPS'),{id:'altW',name:'Alt',available:[true],max:4,choices:[{c:'Hunter',spec:'Red',role:'DPS'},{c:'Warden',spec:'Red',role:'DPS'}]}];let actualImprove=improveClassVariety;improveClassVariety=m=>m;let firstOnlySeed=fillTeam(firstOnlyPool,{id:1,source:0,time:18},{},{});improveClassVariety=actualImprove;`);assert.equal(evaluate('firstOnlySeed.members.filter(p=>p.c==="Warden").length'),1);console.log('Passed: priority bonus once per raid in flow allocation, local/parallel scores and schedule repair; normal duplicate penalty retained; separate raids each get one bonus.');
 evaluate(`players=[{id:'binary',name:'Binary',available:[true],max:4,choices:[{c:'Hunter',spec:'Red',role:'DPS'},{c:'Warden',spec:'Red',role:'DPS'}]}];rolePriorities={};let rosterButtons=quickSpecPicker(players[0]);let orderA={...players[0],...players[0].choices[0],rank:0},orderB={...orderA,rank:99};let orderScoreA=assignmentScore([orderA],{},{}),orderScoreB=assignmentScore([orderB],{},{});preferClass('binary','Warden',true);preferClass('binary','Hunter',true);`);assert.equal(evaluate('orderScoreA'),evaluate('orderScoreB'));assert(evaluate('rosterButtons.includes("playerpriority")'));assert(!evaluate('rosterButtons.includes("Prefer</label>" )'));assert.equal(evaluate('players[0].preferredClasses.length'),2);evaluate(`preferClass('binary','Hunter',false)`);assert.equal(evaluate('players[0].preferredClasses.join(",")'),'Warden');assert.equal(evaluate('players[0].choices.length'),2);console.log('Passed: binary per-class roster stars, multiple first choices, no implicit signup-order weighting or disabled specs.');
 evaluate(`players=[{id:'sumA',name:'A',preferredClasses:['Warden']},{id:'sumB',name:'B'},{id:'sumC',name:'C',preferredClasses:['Hunter']}];teams=[{members:[{id:'sumA',name:'A',c:'Warden',spec:'Blue',role:'Tank'},{id:'sumB',name:'B',c:'Hunter',spec:'Red',role:'DPS'}]},{members:[{id:'sumA',name:'A',c:'Champion',spec:'Red',role:'DPS'}]}];let summaryRows=playerRunSummary();`);assert.equal(evaluate('summaryRows[0].runs'),2);assert.equal(evaluate('summaryRows[0].firstChoices'),1);assert.equal(evaluate('summaryRows[0].roles.Tank'),1);assert.equal(evaluate('summaryRows[0].roles.DPS'),1);assert.equal(evaluate('summaryRows[1].firstChoices'),null);assert.equal(evaluate('summaryRows[2].runs'),0);assert(!fs.readFileSync('public/app.js','utf8').includes('Choice #'));console.log('Passed: player summary counts runs, first-choice matches, roles played, no preference and unassigned players; obsolete choice numbers removed.');
 // Tentatives are reserves, not a preference or class-variety bonus.
@@ -166,23 +166,52 @@ assert.equal(evaluate('teams[0].members[0].id'),'tentativeNormal');
 assert.equal(evaluate('teams[0].alternatives.tentativeNormal.choices[0].id'),'confirmedAlt');
 assert(evaluate('tentativeAlternativeHTML(teams[0].members[0],teams[0])').includes('Rune-keeper'));
 // Enough people for two teams: propose parallel coverage and apply without generation.
-evaluate(`rolePriorities={};template.Healer=[0,0];size=6;players=Array.from({length:12},(_,i)=>({id:'config'+i,name:'Config '+i,max:1,available:[true],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}));runs=[{id:1,source:0,time:18,label:'One'}];teams=assign(runs);dirty=false;let proposed=findRecommendedConfiguration(teams,5000);`);
+evaluate(`rolePriorities={};template.Healer=[0,0];size=6;parallel=true;extra=false;players=Array.from({length:12},(_,i)=>({id:'config'+i,name:'Config '+i,max:1,available:[true],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}));runs=[{id:1,source:0,time:18,label:'One'}];teams=assign(runs);dirty=false;let proposed=findRecommendedConfiguration(teams,5000);`);
 assert(evaluate('proposed'));
 assert.equal(evaluate('proposed.uniquePlayers'),12);
 assert.equal(evaluate('proposed.completeTeams'),2);
 assert.equal(evaluate('proposed.runCount'),1);
-assert.equal(evaluate('proposed.groups'),2);
+assert.deepEqual(evaluate('proposed.groups'),[2]);
 assert.equal(evaluate('new Set(proposed.runs.map(r=>r.time)).size'),1);
 assert(evaluate('recommendedConfigurationHTML()').includes('Update run configuration'));
+assert(evaluate('recommendedConfigurationHTML()').includes('more player'));
 evaluate('applyRecommendedConfiguration()');assert.equal(evaluate('runs.length'),2);assert.equal(evaluate('dirty'),true);
 assert.equal(evaluate('teams.length'),1);
 assert.equal(evaluate('recommendedConfiguration'),null);
 assert.equal(evaluate('recommendedConfigurationHTML()'),'');
-// Matching configuration hides the recommendation card.
+// Matching configuration hides the apply card and shows layout status.
 evaluate(`dirty=false;teams=assign(runs);let matched=findRecommendedConfiguration(teams,2000);`);
 assert.equal(evaluate('matched'),null);
-assert.equal(evaluate('recommendedConfigurationHTML()'),'');
+assert(evaluate('recommendedConfigurationHTML()').includes('Layout check'));
+assert(!evaluate('recommendedConfigurationHTML()').includes('Update run configuration'));
+assert(!evaluate('teamScheduleControls()').includes('Parallel group'));
+assert(evaluate('typeof changeAllParallel==="undefined"'));
 console.log('Passed: tentative normal selection with confirmed icon alternate; recommended parallel run template and explicit apply-then-generate workflow.');
+// Flags: without Suggest parallel, do not recommend a parallel expansion.
+evaluate(`parallel=false;extra=false;runs=[{id:1,source:0,time:18,label:'One'}];players=Array.from({length:12},(_,i)=>({id:'flag'+i,name:'Flag '+i,max:1,available:[true],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}));teams=assign(runs);dirty=false;let noFlag=findRecommendedConfiguration(teams,2000);`);
+assert.equal(evaluate('noFlag'),null);
+assert(evaluate('recommendedConfigurationStatus.state==="complete"'));
+// Sequential extra: recommend a second source when Suggest extra is on.
+evaluate(`parallel=false;extra=true;runs=[{id:1,source:0,time:18,label:'One'}];players=Array.from({length:12},(_,i)=>({id:'seq'+i,name:'Seq '+i,max:1,available:[true],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}));teams=assign(runs);dirty=false;let sequential=findRecommendedConfiguration(teams,5000);`);
+assert(evaluate('sequential'));
+assert.deepEqual(evaluate('sequential.groups'),[1,1]);
+assert.equal(evaluate('sequential.uniquePlayers'),12);
+assert(evaluate('recommendedConfigurationHTML()').includes('sequential run'));
+// Non-uniform shape [2,1] beats rectangular when that covers more without redundant teams.
+evaluate(`parallel=true;extra=true;size=6;template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};runs=[{id:1,source:0,time:18,label:'One'}];players=[...Array.from({length:12},(_,i)=>({id:'nuA'+i,name:'NuA '+i,max:1,available:[true,false],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]})),...Array.from({length:6},(_,i)=>({id:'nuB'+i,name:'NuB '+i,max:1,available:[false,true],choices:[{c:'Champion',spec:'Red',role:'DPS'}]}))];teams=assign(runs);dirty=false;let nonUniform=findRecommendedConfiguration(teams,5000);`);
+assert(evaluate('nonUniform'));
+assert.deepEqual(evaluate('nonUniform.groups'),[2,1]);
+assert.equal(evaluate('nonUniform.uniquePlayers'),18);
+// High-alt roster still finds the one-step parallel within budget (no largest-first starvation).
+evaluate(`parallel=true;extra=false;size=6;runs=[{id:1,source:0,time:18,label:'One'}];players=Array.from({length:12},(_,i)=>({id:'alt'+i,name:'Alt '+i,max:1,available:[true],choices:Array.from({length:8},(_,j)=>({c:['Hunter','Champion','Burglar','Guardian','Minstrel','Captain','Warden','Lore-master'][j],spec:'Red',role:j===4?'Healer':j===5?'Buffer':j===3||j===6?'Tank':'DPS'}))}));teams=assign(runs);dirty=false;let highAlt=findRecommendedConfiguration(teams,900);`);
+assert(evaluate('highAlt'));
+assert.deepEqual(evaluate('highAlt.groups'),[2]);
+// Lock-aware scoring/copy: fewer repeated-character locks beat an otherwise similar layout.
+evaluate(`size=1;template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};constraints=[];fellowshipSetup=emptyFellowshipSetup();lockPriority='gearing';players=[{id:'lockP',name:'Lock',max:2,available:[true,true],choices:[{c:'Hunter',spec:'Red',role:'DPS'},{c:'Champion',spec:'Red',role:'DPS'}]},{id:'freshP',name:'Fresh',max:1,available:[true,false],choices:[{c:'Burglar',spec:'Red',role:'DPS'}]}];let lockedPair=[{id:1,source:0,time:18,label:'One',members:[{id:'lockP',name:'Lock',c:'Hunter',spec:'Red',role:'DPS'}]},{id:2,source:1,time:19,label:'Two',members:[{id:'lockP',name:'Lock',c:'Hunter',spec:'Red',role:'DPS'}]}],freshPair=[{id:1,source:0,time:18,label:'One',members:[{id:'freshP',name:'Fresh',c:'Burglar',spec:'Red',role:'DPS'}]},{id:2,source:0,time:18,label:'One · Group 2',group:2,members:[{id:'lockP',name:'Lock',c:'Hunter',spec:'Red',role:'DPS'}]}];`);
+assert(evaluate('lockedPlayerCount(lockedPair)>lockedPlayerCount(freshPair)'));
+assert(evaluate('betterSchedule(runConfigurationScore(freshPair),runConfigurationScore(lockedPair))'));
+assert(evaluate('describeConfigurationBenefit(configurationSummary(lockedPair),configurationSummary(freshPair)).includes("lock")'));
+console.log('Passed: aggressive layout flags, sequential/non-uniform shapes, high-alt budget, and lock-aware recommendations.');
 // All modes preserve required comp before avoiding repeats.
 evaluate(`fellowshipSetup=emptyFellowshipSetup();constraints=[];rolePriorities={};size=1;duration=1;template={Tank:[0,0],Healer:[1,1],Debuffer:[0,0],Buffer:[0,0]};runs=[{id:1,source:0,time:18,label:'One'},{id:2,source:1,time:19,label:'Two'}];players=[{id:'onlyHeal',name:'Only healer',available:[true,true],max:2,choices:[{c:'Minstrel',spec:'Blue',role:'Healer'}]},{id:'freshDps',name:'Fresh DPS',available:[true,true],max:2,choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}];lockPriority='gearing';teams=assign(runs);`);
 assert.equal(evaluate('lockedPlayerCount(teams)'),1);
@@ -195,21 +224,23 @@ assert.equal(evaluate('globalFresh.reduce((n,t)=>n+t.members.length,0)'),30);
 assert.equal(evaluate('lockedPlayerCount(globalFresh)'),0);
 assert(evaluate('scheduleFeasible(globalFresh)'));
 console.log('Passed: global fresh-character allocation fills sequential runs without repeated characters or eligibility violations.');
-// Explicit ordering separates required role comp from additional constraints.
+// Explicit ordering: severe Additional-constraint misses beat locks; mild misses do not in gearing.
 evaluate(`size=1;constraints=[];fellowshipSetup=emptyFellowshipSetup();template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};runs=[{id:1,source:0,time:18,label:'One'},{id:2,source:1,time:19,label:'Two'}];players=[{id:'cut',name:'Cut',max:2,available:[true,true],choices:[{c:'Brawler',spec:'Red',role:'DPS'}]},{id:'fresh',name:'Fresh',max:2,available:[true,true],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}];let cutRule=newRule('presence');cutRule.config={className:'Brawler',spec:'Any',minimum:1};constraints=[cutRule];let compFresh=[{...runs[0],members:[{...players[0],...players[0].choices[0]}]},{...runs[1],members:[{...players[1],...players[1].choices[0]}]}],perfectRepeat=runs.map(t=>({...t,members:[{...players[0],...players[0].choices[0]}]}));lockPriority='gearing';`);
-assert(evaluate('betterSchedule(scheduleObjective(compFresh),scheduleObjective(perfectRepeat))'));
+assert(evaluate('betterSchedule(scheduleObjective(perfectRepeat),scheduleObjective(compFresh))'),'severe presence miss loses to locked compliant schedule in gearing');
 evaluate(`lockPriority='quality'`);assert(evaluate('betterSchedule(scheduleObjective(perfectRepeat),scheduleObjective(compFresh))'));
-evaluate(`lockPriority='gearing'`);assert(evaluate('betterSchedule(scheduleObjective(compFresh),scheduleObjective(perfectRepeat))'));
+evaluate(`lockPriority='gearing';let mild=newRule('contribution_target');mild.strength='hard';mild.scope='each_raid';mild.config={target:100,unit:'%',combination:'additive',groupCombination:'highest',allowDuplicates:false,providers:[{name:'Almost',className:'Hunter',spec:'Red',value:90},{name:'Full',className:'Brawler',spec:'Red',value:100}]};constraints=[mild];players=[{id:'cut',name:'Cut',max:2,available:[true,true],choices:[{c:'Brawler',spec:'Red',role:'DPS'},{c:'Hunter',spec:'Red',role:'DPS'}]},{id:'fresh',name:'Fresh',max:2,available:[true,true],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}];let mildFresh=[{...runs[0],members:[{id:'cut',name:'Cut',c:'Hunter',spec:'Red',role:'DPS'}]},{...runs[1],members:[{id:'fresh',name:'Fresh',c:'Hunter',spec:'Red',role:'DPS'}]}],mildRepeat=runs.map(t=>({...t,members:[{id:'cut',name:'Cut',c:'Brawler',spec:'Red',role:'DPS'}]}));`);
+assert(evaluate('betterSchedule(scheduleObjective(mildFresh),scheduleObjective(mildRepeat))'),'gearing: mild hard miss can lose to unlock');
+evaluate(`lockPriority='quality'`);assert(evaluate('betterSchedule(scheduleObjective(mildRepeat),scheduleObjective(mildFresh))'),'quality: hard constraints beat locks');
 assert(evaluate('lockPriorityControls()').includes('Prioritize team quality'));
 evaluate(`size=6;lockPriority='quality';let perfectSession=compactSessionSnapshot();restoreSession(perfectSession)`);assert.equal(evaluate('lockPriority'),'quality');
-console.log('Passed: gearing and team quality place required comp first; team quality places preferred comp before constraints and persists.');
+console.log('Passed: gearing severe constraints beat locks, mild misses do not; team quality keeps constraints before locks and persists.');
 evaluate(`size=1;constraints=[];fellowshipSetup=emptyFellowshipSetup();rolePriorities={};template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,1]};runs=[{id:1,source:0,time:18,label:'One'}];players=[{id:'prefTier',name:'Preference',max:1,available:[true],preferredClasses:['Hunter'],choices:[{c:'Hunter',spec:'Red',role:'DPS'},{c:'Captain',spec:'Red',role:'Buffer'}]}];let preferredPlayer=[{...runs[0],members:[{...players[0],...players[0].choices[0]}]}],preferredRole=[{...runs[0],members:[{...players[0],...players[0].choices[1]}]}];lockPriority='gearing';`);
 assert(evaluate('betterSchedule(scheduleObjective(preferredPlayer),scheduleObjective(preferredRole))'));
 evaluate('template.Buffer=[1,1]');assert(evaluate('betterSchedule(scheduleObjective(preferredRole),scheduleObjective(preferredPlayer))'));
 evaluate(`template.Buffer=[0,1];let tierConstraint=newRule('presence');tierConstraint.config={className:'Captain',spec:'Any',minimum:1};constraints=[tierConstraint]`);
-assert(evaluate('betterSchedule(scheduleObjective(preferredPlayer),scheduleObjective(preferredRole))'));
+assert(evaluate('betterSchedule(scheduleObjective(preferredRole),scheduleObjective(preferredPlayer))'));
 evaluate(`lockPriority='quality'`);assert(evaluate('betterSchedule(scheduleObjective(preferredRole),scheduleObjective(preferredPlayer))'));
-console.log('Passed: required comp beats player preference, player preference beats preferred comp and additional constraints in comp mode; perfect mode applies its separate hierarchy.');
+console.log('Passed: required comp beats player preference; severe additional-constraint misses beat preference; perfect mode keeps its hierarchy.');
 // Duplicate same-class roster entries are separate characters for locks.
 evaluate(`lockPriority='gearing';size=1;duration=1;constraints=[];fellowshipSetup=emptyFellowshipSetup();rolePriorities={};template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};runs=[{id:1,source:0,time:18,label:'One'},{id:2,source:1,time:19,label:'Two'}];players=[{id:'twin',name:'Twin',max:2,available:[true,true],choices:[{c:'Guardian',spec:'Blue',role:'Tank'}],signupClasses:['Guardian']}];addSignupClass('twin','Guardian');ensureRosterCharacters();let twinSlots=players[0].signupCharacters.filter(s=>s.c==='Guardian');players[0].choices=[{c:'Guardian',spec:'Blue',role:'Tank',charId:twinSlots[0].id},{c:'Guardian',spec:'Red',role:'DPS',charId:twinSlots[1].id}];teams=assign(runs);`);
 assert.equal(evaluate('twinSlots.length'),2);
@@ -248,51 +279,111 @@ evaluate(`players=[{id:'444',name:'BrokenAvail',max:4,choices:[{c:'Hunter',spec:
 assert.equal(evaluate('players.length'),2);
 assert(evaluate(`players.every(p=>Array.isArray(p.available)&&p.available.length)`));
 console.log('Passed: Raid-Helper append updates existing slots with charIds, adds players, fills empty class slots, and tolerates missing availability.');
-// New-player concentration helper and soft distribution objectives.
-assert.equal(evaluate(`newPlayerConcentration([[{id:'a'},{id:'b'}],[{id:'c'},{id:'d'}]],12,new Set(['a','b','c','d']))`),evaluate('8/12'));
-assert(evaluate(`newPlayerConcentration([[{id:'a'},{id:'b'},{id:'c'}],[{id:'d'}]],12,new Set(['a','b','c','d']))>newPlayerConcentration([[{id:'a'},{id:'b'}],[{id:'c'},{id:'d'}]],12,new Set(['a','b','c','d']))`));
-assert(evaluate(`newPlayerConcentration([[{id:'a'},{id:'b'}],[{id:'c'},{id:'d'},{id:'e'},{id:'f'}]],[12,24],new Set(['a','b','c','d','e','f']))<newPlayerConcentration([[{id:'a'},{id:'b'},{id:'c'}],[{id:'d'},{id:'e'},{id:'f'}]],[12,24],new Set(['a','b','c','d','e','f']))`));
-assert.equal(evaluate(`newPlayerConcentration([[{id:'a'}]],0,new Set(['a']))`),0);
-assert.equal(evaluate(`newPlayerConcentration([[{id:'a'},{id:'a'}]],12,new Set(['a']))`),evaluate('1/12'));
-evaluate(`lockPriority='gearing';size=6;duration=1;constraints=[];fellowshipSetup=emptyFellowshipSetup();rolePriorities={};template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};let np=(id,mark)=>({id,name:id,max:1,available:[true],isNewPlayer:!!mark,choices:[{c:'Hunter',spec:'Red',role:'DPS'},{c:'Champion',spec:'Red',role:'DPS'},{c:'Burglar',spec:'Red',role:'DPS'}]});players=[np('n0',true),np('n1',true),np('n2',true),np('n3',true),np('o0',false),np('o1',false),np('o2',false),np('o3',false),np('o4',false),np('o5',false),np('o6',false),np('o7',false)];runs=[{id:1,source:0,time:18,label:'A'},{id:2,source:0,time:18,label:'B'}];teams=assign(runs);`);
-assert.equal(evaluate('teams.length'),2);
-assert.equal(evaluate(`teams.map(t=>t.members.filter(m=>isNewPlayerMarked(m)).length).sort().join(',')`),'2,2');
-assert(evaluate('scheduleFeasible(teams)'));
-evaluate(`players=players.slice(0,11);players[0].isNewPlayer=players[1].isNewPlayer=players[2].isNewPlayer=true;for(let i=3;i<players.length;i++)delete players[i].isNewPlayer;teams=assign(runs);let split=teams.map(t=>t.members.filter(m=>isNewPlayerMarked(m)).length).sort();`);
-assert.equal(evaluate('split.join(",")'),'1,2');
-// Objective prefers covering more newcomers before concentration.
-evaluate(`players.forEach((p,i)=>{if(i<4)p.isNewPlayer=true;else delete p.isNewPlayer});let coverMore=scheduleMetrics([{id:1,source:0,time:18,members:players.slice(0,4).map(p=>({...p,...p.choices[0]}))},{id:2,source:0,time:18,members:players.slice(4,8).map(p=>({...p,...p.choices[0]}))}]);let coverLess=scheduleMetrics([{id:1,source:0,time:18,members:players.slice(0,2).map(p=>({...p,...p.choices[0]}))},{id:2,source:0,time:18,members:players.slice(4,8).map(p=>({...p,...p.choices[0]}))}]);`);
-assert(evaluate('betterSchedule(selectionObjective(coverMore),selectionObjective(coverLess))'));
-assert(evaluate('betterSchedule(selectionObjective(scheduleMetrics([{id:1,source:0,time:18,members:[players[0],players[1],players[4],players[5],players[6],players[7]].map(p=>({...p,...p.choices[0]}))},{id:2,source:0,time:18,members:[players[2],players[3],players[8],players[9],players[10],players[6]].map(p=>({...p,...p.choices[0]}))}])),selectionObjective(scheduleMetrics([{id:1,source:0,time:18,members:[players[0],players[1],players[2],players[4],players[5],players[6]].map(p=>({...p,...p.choices[0]}))},{id:2,source:0,time:18,members:[players[3],players[7],players[8],players[9],players[10],players[5]].map(p=>({...p,...p.choices[0]}))}])))'));
-// Fellowship partition spreads two newcomers 1/1 when setup is inactive.
-evaluate(`size=12;players=Array.from({length:12},(_,i)=>({id:'f'+i,name:'F'+i,available:[true],max:1,isNewPlayer:i<2,choices:[{c:['Hunter','Champion','Burglar','Warden','Captain','Guardian','Minstrel','Rune-keeper','Lore-master','Beorning','Mariner','Brawler'][i],spec:i===6||i===7?'Blue':'Red',role:i===5?'Tank':i===6||i===7?'Healer':i===4?'Buffer':'DPS'}]}));let fellowshipGroups=assignFellowships(players.map(p=>({...p,...p.choices[0]})));`);
-assert.equal(evaluate('fellowshipGroups.map(g=>g.filter(m=>isNewPlayerMarked(m)).length).sort().join(",")'),'1,1');
-// Sequential runs do not incur parallel concentration.
+// Per-class experience stars: cycle, scoring offset, migration, RH preserve.
+evaluate(`players=[{id:'exp',name:'Exp',available:[true],max:1,choices:[{c:'Hunter',spec:'Red',role:'DPS'}],signupClasses:['Hunter'],signupCharacters:[{id:'c1',c:'Hunter'}]}];cycleClassExperience('exp','Hunter');`);
+assert.equal(evaluate(`experienceState(players[0],'Hunter')`),'experienced');
+evaluate(`cycleClassExperience('exp','Hunter');`);
+assert.equal(evaluate(`experienceState(players[0],'Hunter')`),'inexperienced');
+evaluate(`cycleClassExperience('exp','Hunter');`);
+assert.equal(evaluate(`experienceState(players[0],'Hunter')`),'default');
+assert(evaluate('quickSpecPicker(players[0]).includes("classexp")'));
+assert(evaluate('signupView().includes("Exp stars")'));
+// Inexperienced DPS offset by experienced DPS beats two inexperienced DPS; healer inexp not offset by DPS exp.
+evaluate(`lockPriority='gearing';size=2;duration=1;constraints=[];fellowshipSetup=emptyFellowshipSetup();rolePriorities={};template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};
+players=[{id:'inexpD',name:'ID',available:[true],max:1,inexperiencedClasses:['Hunter'],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]},{id:'expD',name:'ED',available:[true],max:1,experiencedClasses:['Champion'],choices:[{c:'Champion',spec:'Red',role:'DPS'}]},{id:'inexpD2',name:'ID2',available:[true],max:1,inexperiencedClasses:['Burglar'],choices:[{c:'Burglar',spec:'Red',role:'DPS'}]},{id:'inexpH',name:'IH',available:[true],max:1,inexperiencedClasses:['Minstrel'],choices:[{c:'Minstrel',spec:'Blue',role:'Healer'}]}];
+let offsetOk=[{id:1,source:0,time:18,members:[{...players[0],...players[0].choices[0]},{...players[1],...players[1].choices[0]}]}];
+let twoInexp=[{id:1,source:0,time:18,members:[{...players[0],...players[0].choices[0]},{...players[2],...players[2].choices[0]}]}];
+let crossRole=[{id:1,source:0,time:18,members:[{...players[3],...players[3].choices[0]},{...players[1],...players[1].choices[0]}]}];
+`);
+assert(evaluate('betterSchedule(scheduleObjective(offsetOk),scheduleObjective(twoInexp))'));
+assert(evaluate('experienceDeficitPenalty(crossRole[0].members,2)>experienceDeficitPenalty(offsetOk[0].members,2)'));
+assert.equal(evaluate('experienceDeficitPenalty([],6)'),0);
+// Parallel split of unmatched inexperience preferred over concentrating it.
+evaluate(`size=6;players=[{id:'n0',name:'n0',available:[true],max:1,inexperiencedClasses:['Hunter'],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]},{id:'n1',name:'n1',available:[true],max:1,inexperiencedClasses:['Champion'],choices:[{c:'Champion',spec:'Red',role:'DPS'}]},{id:'n2',name:'n2',available:[true],max:1,inexperiencedClasses:['Burglar'],choices:[{c:'Burglar',spec:'Red',role:'DPS'}]},{id:'n3',name:'n3',available:[true],max:1,inexperiencedClasses:['Warden'],choices:[{c:'Warden',spec:'Red',role:'DPS'}]},...Array.from({length:8},(_,i)=>({id:'o'+i,name:'o'+i,available:[true],max:1,choices:[{c:'Mariner',spec:'Red',role:'DPS'}]}))];
+let expSpread=scheduleMetrics([{id:1,source:0,time:18,members:[players[0],players[1],players[4],players[5],players[6],players[7]].map(p=>({...p,...p.choices[0]}))},{id:2,source:0,time:18,members:[players[2],players[3],players[8],players[9],players[10],players[11]].map(p=>({...p,...p.choices[0]}))}]);
+let expClump=scheduleMetrics([{id:1,source:0,time:18,members:[players[0],players[1],players[2],players[4],players[5],players[6]].map(p=>({...p,...p.choices[0]}))},{id:2,source:0,time:18,members:[players[3],players[7],players[8],players[9],players[10],players[11]].map(p=>({...p,...p.choices[0]}))}]);
+`);
+assert(evaluate('betterSchedule(selectionObjective(expSpread),selectionObjective(expClump))'));
 evaluate(`let seq=[{id:1,source:0,time:18,members:players.slice(0,4).map(p=>({...p,...p.choices[0]}))},{id:2,source:1,time:20,members:players.slice(0,4).map(p=>({...p,...p.choices[0]}))}];`);
-assert.equal(evaluate('parallelNewPlayerConcentration(seq)'),0);
-assert(evaluate('parallelNewPlayerConcentration([{id:1,source:0,time:18,members:players.slice(0,4).map(p=>({...p,...p.choices[0]}))},{id:2,source:0,time:18,members:players.slice(4,8).map(p=>({...p,...p.choices[0]}))}])>0'));
-// Higher goals beat newcomer balance: required healer missing on balanced layout loses to uneven valid layout.
-evaluate(`size=1;template.Healer=[1,1];players=[{id:'healNew',name:'HN',max:1,available:[true],isNewPlayer:true,choices:[{c:'Minstrel',spec:'Blue',role:'Healer'}]},{id:'dpsNew',name:'DN',max:1,available:[true],isNewPlayer:true,choices:[{c:'Hunter',spec:'Red',role:'DPS'}]},{id:'dpsOld',name:'DO',max:1,available:[true],choices:[{c:'Champion',spec:'Red',role:'DPS'}]}];runs=[{id:1,source:0,time:18,label:'A'},{id:2,source:0,time:18,label:'B'}];let validUneven=[{...runs[0],members:[{...players[0],...players[0].choices[0]}]},{...runs[1],members:[{...players[1],...players[1].choices[0]}]}];let invalidBalanced=[{...runs[0],members:[{...players[1],...players[1].choices[0]}]},{...runs[1],members:[{...players[2],...players[2].choices[0]}]}];`);
+assert.equal(evaluate('parallelExperienceConcentration(seq)'),0);
+assert(evaluate('parallelExperienceConcentration([{id:1,source:0,time:18,members:players.slice(0,4).map(p=>({...p,...p.choices[0]}))},{id:2,source:0,time:18,members:players.slice(4,8).map(p=>({...p,...p.choices[0]}))}])>0'));
+// Required healer still beats experience balance.
+evaluate(`size=1;template.Healer=[1,1];players=[{id:'healNew',name:'HN',max:1,available:[true],inexperiencedClasses:['Minstrel'],choices:[{c:'Minstrel',spec:'Blue',role:'Healer'}]},{id:'dpsNew',name:'DN',max:1,available:[true],inexperiencedClasses:['Hunter'],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]},{id:'dpsOld',name:'DO',max:1,available:[true],choices:[{c:'Champion',spec:'Red',role:'DPS'}]}];runs=[{id:1,source:0,time:18,label:'A'},{id:2,source:0,time:18,label:'B'}];let validUneven=[{...runs[0],members:[{...players[0],...players[0].choices[0]}]},{...runs[1],members:[{...players[1],...players[1].choices[0]}]}];let invalidBalanced=[{...runs[0],members:[{...players[1],...players[1].choices[0]}]},{...runs[1],members:[{...players[2],...players[2].choices[0]}]}];`);
 assert(evaluate('betterSchedule(scheduleObjective(validUneven),scheduleObjective(invalidBalanced))'));
-// Marker persistence: session, compact omit false, append/reimport, UI dirty.
-evaluate(`size=6;template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};players=[{id:'keep',name:'Keep',available:[true],max:1,isNewPlayer:true,choices:[{c:'Hunter',spec:'Red',role:'DPS'}]},{id:'plain',name:'Plain',available:[true],max:1,choices:[{c:'Champion',spec:'Red',role:'DPS'}]}];runs=[{id:1,source:0,time:18,label:'One'}];teams=[];hasGenerated=false;let packedNew=compactSessionSnapshot();`);
-assert.equal(evaluate('packedNew.players.find(p=>p.id==="keep").isNewPlayer'),true);
-assert.equal(evaluate('"isNewPlayer" in packedNew.players.find(p=>p.id==="plain")'),false);
+// Legacy isNewPlayer migrates; compact omits empty; RH preserves arrays.
+evaluate(`size=6;template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};players=[{id:'keep',name:'Keep',available:[true],max:1,isNewPlayer:true,choices:[{c:'Hunter',spec:'Red',role:'DPS'}],signupClasses:['Hunter'],signupCharacters:[{id:'k1',c:'Hunter'}]},{id:'plain',name:'Plain',available:[true],max:1,choices:[{c:'Champion',spec:'Red',role:'DPS'}]}];runs=[{id:1,source:0,time:18,label:'One'}];teams=[];hasGenerated=false;let packedNew=compactSessionSnapshot();`);
+assert.equal(evaluate('"isNewPlayer" in packedNew.players.find(p=>p.id==="keep")'),false);
+assert.equal(evaluate('packedNew.players.find(p=>p.id==="keep").inexperiencedClasses.join(",")'),'Hunter');
+assert.equal(evaluate('"inexperiencedClasses" in packedNew.players.find(p=>p.id==="plain")'),false);
 evaluate(`restoreSession(JSON.parse(JSON.stringify(packedNew)));`);
-assert.equal(evaluate('players.find(p=>p.id==="keep").isNewPlayer'),true);
-assert.throws(()=>evaluate(`validateSession({...compactSessionSnapshot(),players:[{id:'keep',name:'Keep',available:[true],max:1,isNewPlayer:'yes',choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}]})`));
-evaluate(`players.find(p=>p.id==='keep').isNewPlayer=true;rhApplyMode='append';setRHEvents([{signUps:[{userId:'keep',name:'Keep',className:'Burglar',cSpecName:'Red'},{userId:'fresh',name:'Fresh',className:'Warden',cSpecName:'Red'}]}]);applyRH();`);
-assert.equal(evaluate('players.find(p=>p.id==="keep").isNewPlayer'),true);
-assert.equal(evaluate('players.find(p=>p.id==="fresh").isNewPlayer'),undefined);
+assert.equal(evaluate('experienceState(players.find(p=>p.id==="keep"),"Hunter")'),'inexperienced');
+assert.throws(()=>evaluate(`validateSession({...compactSessionSnapshot(),players:[{id:'keep',name:'Keep',available:[true],max:1,experiencedClasses:['Nope'],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}]})`));
+evaluate(`players.find(p=>p.id==='keep').experiencedClasses=['Hunter'];players.find(p=>p.id==='keep').inexperiencedClasses=[];cleanExperienceLists(players.find(p=>p.id==='keep'));rhApplyMode='append';setRHEvents([{signUps:[{userId:'keep',name:'Keep',className:'Burglar',cSpecName:'Red'},{userId:'fresh',name:'Fresh',className:'Warden',cSpecName:'Red'}]}]);applyRH();`);
+assert.equal(evaluate('experienceState(players.find(p=>p.id==="keep"),"Hunter")'),'experienced');
+assert.equal(evaluate('experienceState(players.find(p=>p.id==="fresh"),"Warden")'),'default');
 evaluate(`rhApplyMode='replace';setRHEvents([{signUps:[{userId:'keep',name:'Keep',className:'Hunter',cSpecName:'Red'},{userId:'fresh',name:'Fresh',className:'Warden',cSpecName:'Red'}]}]);applyRH();`);
-assert.equal(evaluate('players.find(p=>p.id==="keep").isNewPlayer'),true);
-assert.equal(evaluate('!!players.find(p=>p.id==="fresh").isNewPlayer'),false);
-evaluate(`hasGenerated=true;teams=[{id:1,source:0,time:18,label:'One',members:[{id:'keep',name:'Keep',c:'Hunter',spec:'Red',role:'DPS'}]}];dirty=false;toggleNewPlayer('keep');`);
+assert.equal(evaluate('experienceState(players.find(p=>p.id==="keep"),"Hunter")'),'experienced');
+assert.equal(evaluate('experienceState(players.find(p=>p.id==="fresh"),"Warden")'),'default');
+evaluate(`hasGenerated=true;teams=[{id:1,source:0,time:18,label:'One',members:[{id:'keep',name:'Keep',c:'Hunter',spec:'Red',role:'DPS'}]}];dirty=false;cycleClassExperience('keep','Hunter');`);
 assert.equal(evaluate('dirty'),true);
-assert.equal(evaluate('!!players.find(p=>p.id==="keep").isNewPlayer'),false);
-assert(evaluate('signupView()').includes('New player'));
-assert.equal(evaluate('newPlayerBadge(players.find(p=>p.id==="fresh"))'),'');
-evaluate(`players.find(p=>p.id==='fresh').isNewPlayer=true;`);
-assert(evaluate('newPlayerBadge(players.find(p=>p.id==="fresh"))').includes('New'));
-assert(evaluate('playerSummaryCard()').includes('newplayerbadge'));
-console.log('Passed: new-player concentration scoring, parallel 2/2 and 2/1 distribution, sequential independence, precedence over balance, and marker persistence.');
+assert.equal(evaluate('experienceState(players.find(p=>p.id==="keep"),"Hunter")'),'inexperienced');
+assert(evaluate('experienceBadge({id:"keep",c:"Hunter"}).includes("Inexp")'));
+assert(evaluate('playerSummaryCard().includes("expbadge")||playerSummaryCard().includes("Exp")'));
+console.log('Passed: class experience stars, role-aware offset scoring, parallel split, migration and RH preserve.');
+
+// Gearing mode: severe hard-constraint shortfalls outrank preferences/locks; mild misses do not.
+evaluate(`lockPriority='gearing';size=1;duration=1;constraints=[];fellowshipSetup=emptyFellowshipSetup();rolePriorities={};template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};runs=[{id:1,source:0,time:18,label:'One'}];
+let healCut=newRule('contribution_target');healCut.strength='hard';healCut.scope='each_raid';healCut.config={target:100,unit:'%',combination:'additive',groupCombination:'highest',allowDuplicates:false,providers:[{name:'Cut',className:'Captain',spec:'Red',value:40},{name:'Mid',className:'Minstrel',spec:'Blue',value:90},{name:'Full',className:'Rune-keeper',spec:'Blue',value:100}]};
+constraints=[healCut];
+let cut40=[{...runs[0],members:[{id:'a',name:'A',c:'Captain',spec:'Red',role:'Buffer'}]}];
+let cut90=[{...runs[0],members:[{id:'a',name:'A',c:'Minstrel',spec:'Blue',role:'Healer'}]}];
+let cut100=[{...runs[0],members:[{id:'a',name:'A',c:'Rune-keeper',spec:'Blue',role:'Healer'}]}];
+`);
+assert.equal(evaluate('resultForMembers(constraints[0],cut40[0].members).deficit'),0.6);
+assert.equal(evaluate('resultForMembers(constraints[0],cut90[0].members).deficit'),0.1);
+assert.equal(evaluate('resultForMembers(constraints[0],cut100[0].members).deficit'),0);
+assert.equal(evaluate('scheduleMetrics(cut40).constraintsHard'),0.6);
+assert.equal(evaluate('scheduleMetrics(cut40).constraintsSevere'),0.35);
+assert.equal(evaluate('scheduleMetrics(cut90).constraintsHard'),0.1);
+assert.equal(evaluate('scheduleMetrics(cut90).constraintsSevere'),0);
+assert.equal(evaluate('scheduleMetrics(cut100).constraintsHard'),0);
+assert.equal(evaluate('scheduleMetrics(cut100).constraintsSevere'),0);
+evaluate(`players=[{id:'a',name:'A',max:1,available:[true],preferredClasses:['Captain'],choices:[{c:'Captain',spec:'Red',role:'Buffer'},{c:'Minstrel',spec:'Blue',role:'Healer'},{c:'Rune-keeper',spec:'Blue',role:'Healer'}]}];
+let pref40=[{...runs[0],members:[{...players[0],...players[0].choices[0]}]}];
+let nonpref90=[{...runs[0],members:[{...players[0],...players[0].choices[1]}]}];
+`);
+assert(evaluate('betterSchedule(scheduleObjective(nonpref90),scheduleObjective(pref40))'),'90% nonpref beats 40% pref');
+evaluate(`players[0].preferredClasses=['Minstrel'];let pref90=[{...runs[0],members:[{...players[0],...players[0].choices[1]}]}];let nonpref100=[{...runs[0],members:[{...players[0],...players[0].choices[2]}]}];`);
+assert(evaluate('betterSchedule(scheduleObjective(pref90),scheduleObjective(nonpref100))'),'90% pref can beat 100% nonpref');
+evaluate(`players[0].preferredClasses=[]`);
+assert(evaluate('betterSchedule(scheduleObjective(cut100),scheduleObjective(cut90))'),'100% beats 90% when gearing costs tie');
+// Schedule-wide scope: localSelectionObjective must propagate constraintsSevere.
+evaluate(`constraints[0].scope='whole_schedule';constraintContext=[];let used={},characters={};let localSevere=localSelectionObjective([{id:'a',name:'A',c:'Captain',spec:'Red',role:'Buffer'}],runs[0],used,characters);let localOk=localSelectionObjective([{id:'a',name:'A',c:'Rune-keeper',spec:'Blue',role:'Healer'}],runs[0],used,characters);`);
+assert(evaluate('betterSchedule(localOk,localSevere)'));
+assert(evaluate('localSevere[1]>0&&localOk[1]===0'));
+console.log('Passed: gearing severe constraint shortfalls, continuous heal-cut metrics, and mild-miss preference tradeoffs.');
+
+// Raid leaders: roster flag, hard-comp seat, parallel split, session/RH preserve.
+evaluate(`lockPriority='gearing';size=1;duration=1;constraints=[];fellowshipSetup=emptyFellowshipSetup();rolePriorities={};template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};parallel=false;extra=false;runs=[{id:1,source:0,time:18,label:'A'},{id:2,source:0,time:18,label:'B'}];players=[{id:'lead1',name:'L1',max:1,available:[true],raidLeader:true,choices:[{c:'Hunter',spec:'Red',role:'DPS'}]},{id:'lead2',name:'L2',max:1,available:[true],raidLeader:true,choices:[{c:'Champion',spec:'Red',role:'DPS'}]},{id:'dps1',name:'D1',max:1,available:[true],choices:[{c:'Burglar',spec:'Red',role:'DPS'}]},{id:'dps2',name:'D2',max:1,available:[true],choices:[{c:'Warden',spec:'Red',role:'DPS'}]}];teams=assign(runs);`);
+assert(evaluate('raidLeaderRequired()'));
+assert(evaluate('teams.every(t=>t.members.some(isRaidLeader))'));
+assert.equal(evaluate('teams.filter(t=>t.members.some(m=>m.id==="lead1")).length'),1);
+assert.equal(evaluate('teams.filter(t=>t.members.some(m=>m.id==="lead2")).length'),1);
+assert.equal(evaluate('scheduleMetrics(teams).comp'),0);
+evaluate(`let noLead=[{...runs[0],members:[{...players[2],...players[2].choices[0]}]},{...runs[1],members:[{...players[3],...players[3].choices[0]}]}];let withLead=[{...runs[0],members:[{...players[0],...players[0].choices[0]}]},{...runs[1],members:[{...players[1],...players[1].choices[0]}]}];`);
+assert(evaluate('raidLeaderDeficit(noLead[0].members)===1'));
+assert(evaluate('betterSchedule(scheduleObjective(withLead),scheduleObjective(noLead))'));
+assert(evaluate('signupView().includes("Raid leader")'));
+evaluate(`hasGenerated=true;teams=withLead;dirty=false;`);
+assert(evaluate('teamView().includes("raidleaderbadge")'));
+evaluate(`players.forEach(p=>delete p.raidLeader);let inactiveDeficit=raidLeaderDeficit([{id:'dps1'}]);size=6;duration=1;fair=true;parallel=false;extra=false;players[0].raidLeader=true;players[1].raidLeader=true;hasGenerated=false;teams=[];runs=[{id:1,source:0,time:18,label:'A'}];let packedLead=compactSessionSnapshot();`);
+assert.equal(evaluate('inactiveDeficit'),0);
+assert.equal(evaluate('!!packedLead.players.find(p=>p.id==="lead1").raidLeader'),true);
+assert.equal(evaluate('"raidLeader" in packedLead.players.find(p=>p.id==="dps1")'),false);
+evaluate(`restoreSession(JSON.parse(JSON.stringify(packedLead)));`);
+assert.equal(evaluate('!!players.find(p=>p.id==="lead1").raidLeader'),true);
+assert.throws(()=>evaluate(`validateSession({...compactSessionSnapshot(),players:[{id:'bad',name:'Bad',available:[true],max:1,raidLeader:'yes',choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}]})`));
+evaluate(`rhApplyMode='replace';setRHEvents([{signUps:[{userId:'lead1',name:'L1',className:'Hunter',cSpecName:'Red'},{userId:'dps1',name:'D1',className:'Burglar',cSpecName:'Red'}]}]);applyRH();`);
+assert.equal(evaluate('!!players.find(p=>p.id==="lead1").raidLeader'),true);
+assert.equal(evaluate('!!players.find(p=>p.id==="dps1").raidLeader'),false);
+console.log('Passed: raid-leader roster flag, hard-comp requirement, session and RH preserve.');
