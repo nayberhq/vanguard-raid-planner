@@ -14,24 +14,25 @@ The shared `selectionObjective` compares numeric vectors lexicographically. A lo
 
 | Mode | Order |
 |---|---|
-| Prioritize comp | Required comp → player preferences + locks → preferred comp → additional constraints |
-| Prioritize locks | Required comp → locks → player preferences → preferred comp → additional constraints |
-| Prioritize perfect | Required comp → preferred comp → additional constraints → player preferences + locks |
+| Prioritize gearing | Required comp → player preferences + locks → preferred comp → additional constraints |
+| Prioritize team quality | Required comp → preferred comp → additional constraints → player preferences + locks |
 
 Within additional constraints, required deficits precede preferred deficits. After these mode levels, all modes consider uncovered players, balanced partial team sizes, duplicate classes, and participation evenness.
 
 Player preferences are class-level stars: prioritized, neutral, or deprioritized. Prioritized selections cost zero; neutral selections cost 1,000 only when the player has other prioritized classes; deprioritized selections cost 2,000. No preferences means zero cost. Neutral selections produce no abnormal-choice note. List order is not a preference.
 
-Repeat cost sums squared prior appearances of each player/class: 0, 1, 4, 9, etc. Comp/perfect mode combines player preference cost with 100,000 times this repeat metric. Locks mode compares repeats separately before preferences. Avoiding a repeat therefore outweighs a single missed preference, and subsequent repeats grow increasingly expensive.
+Repeat cost sums squared prior appearances of each player/class: 0, 1, 4, 9, etc. Both modes combine player preference cost with 100,000 times this repeat metric. Avoiding a repeat therefore outweighs a single missed preference, and subsequent repeats grow increasingly expensive.
 
 Preferred comp includes preferred role staffing, surplus staffing penalties, soft fellowship assignments, and role class/spec priorities. Only the first selected copy of a prioritized class/spec gets its role-priority bonus per raid; additional copies receive ordinary cost and duplicate-class penalties.
+
+Saved `comp` and `unlocked` sessions migrate to `gearing`; saved `perfect` sessions migrate to `quality`. New plans default to gearing. Exported sessions use only these two canonical values. Restored generated plans from the removed locks mode are marked pending regeneration because the preference policy changed.
 
 ## Search stages and efficiency
 
 1. A minimum-cost flow builds a seed, strongly favoring minimum roles and reserving future role supply where practical. Its weighted cost is an inexpensive seed heuristic, not the acceptance policy.
 2. Local replacements and paired character changes use the shared mode objective, actual fellowship placement and rule validation. Previously selected runs inform schedule-wide constraints and character repeat cost.
 3. A global maximum-flow fresh-character seed can redistribute selected player/classes across sequential runs when required comp is unresolved. Its indexed graph connects each character only to that player's available runs. Overlapping schedules use conflict-aware allocation instead.
-4. Repeat-allowed seeds are introduced when required comp remains unresolved. Perfect mode can additionally consider repeats to improve preferred comp or additional constraints. Keep the best fully evaluated schedule, not the last attempted seed.
+4. Repeat-allowed seeds are introduced when required comp remains unresolved. Team quality mode can additionally consider repeats to improve preferred comp or additional constraints. Keep the best fully evaluated schedule, not the last attempted seed.
 5. Global repair considers replacements and cross-run exchanges, enforces availability/overlap/capacity, and evaluates the same objective. Candidate enumeration is bounded by both time and count, with quotas across runs and a mixed shortlist for seed quality, constraints and fresh characters. Alternative starts can cross temporarily worse layouts, but the retained result must improve the full objective.
 6. Final annotation resolves fellowships and validates all rules. Lightweight parallel checks use bounded exchanges with the same objective.
 
@@ -41,7 +42,7 @@ Fellowship search uses the same ordering of required placement, preferred placem
 
 ## Run recommendations
 
-A candidate schedule must meet **all required comp** before it can be recommended in any mode. In perfect mode it must additionally meet preferred staffing/placement goals and every enabled additional constraint, including soft constraints. Role class/spec stars remain ranking preferences rather than introducing mandatory classes.
+A candidate schedule must meet **all required comp** before it can be recommended in any mode. In team quality mode it must additionally meet preferred staffing/placement goals and every enabled additional constraint, including soft constraints. Role class/spec stars remain ranking preferences rather than introducing mandatory classes.
 
 Among qualifying schedules, recommendations favor player coverage, then the selected mode's priorities, distinct playable characters and an earlier finish. Candidate count and time are bounded. New runs inherit last-run availability and tentative status. Recommendations use the same repeat policy as generation. Extra/parallel feasibility markers use the same eligibility gate.
 

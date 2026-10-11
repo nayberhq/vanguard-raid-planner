@@ -42,3 +42,13 @@ The earlier separate integer-program diagnostic showed this uploaded session can
 ## Remaining limitations
 
 Weighted seed flow and cheap candidate pruning can miss useful layouts. Cooperative deadlines allow a single in-progress validation to overrun. Fellowship search and cooldown rotations remain heuristic. Recommendation results are the best checked configurations, not a proof of the largest feasible schedule. See SELECTION.md for the implemented contract.
+
+## Two-mode re-audit — 2026-10-11
+
+The active modes are now **Prioritize gearing** (required comp → preferences/locks → preferred comp → constraints) and **Prioritize team quality** (required comp → preferred comp → constraints → preferences/locks). The removed standalone locks tier no longer participates in seed ranking or final acceptance. The preceding three-mode findings and replay measurements describe the earlier audit, not current mode names.
+
+Reviewed the selector, shared objective, repeat fallback, candidate ranking, recommendation eligibility, recommendation score, worker state, session validation/import/export, browser recovery through session restore, and user-facing explanations. Recommendations use the same two-mode policy; team quality retains its strict preferred-comp/constraint eligibility gate. Recommendation ranking now derives mode tiers from the shared vector, removing the remaining mode-dependent tier-count constant.
+
+Legacy unlocked/comp imports migrate to gearing; perfect imports migrate to quality. Missing mode defaults to gearing. Legacy generated unlocked plans are marked dirty for regeneration. Existing session format versions remain readable, and exports write canonical mode values. No additional server state or search pass was introduced.
+
+Validation includes both modes' pairwise priority ordering, actual differing choices on a preference-versus-preferred-role fixture, required repeat fallback, recommendation gates, exhaustive small-schedule comparison, six legacy/current/default migration cases, exact two-option UI, worker/cancellation tests and the complete planner regression suite. The heuristic limitations listed above remain.
