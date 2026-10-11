@@ -138,3 +138,8 @@ assert.equal(evaluate('teams.every(t=>t.members.length===1&&t.members[0].role===
 evaluate(`template.Healer=[0,0];let seqMember=id=>({id,name:id,c:'Hunter',spec:'Red',role:'DPS',available:[true,true,true,true],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]});players=[seqMember('x'),seqMember('y')];let concentrated=runs.map(t=>({...t,members:[seqMember('x')]}));let spread=runs.map((t,i)=>({...t,members:[seqMember(i%2?'y':'x')]}));`);
 assert(evaluate('betterSchedule(scheduleObjective(spread),scheduleObjective(concentrated))'));
 console.log('Passed: fresh alts before preferred repeats, required repeat fallback, increasing repeat costs and distributed unavoidable locks.');
+evaluate(`players=[{id:'gold',name:'Gold',max:4,available:[true,true],signupClasses:['Hunter','Champion'],choices:[{c:'Hunter',spec:'Red',role:'DPS'},{c:'Champion',spec:'Red',role:'DPS'}]}];teams=[{members:[{id:'gold',c:'Hunter',spec:'Red'}]},{members:[{id:'gold',c:'Hunter',spec:'Red'},{id:'other',c:'Champion',spec:'Red'}]}];`);
+assert(evaluate(`isCharacterSoftLocked('gold','Hunter')`));assert(!evaluate(`isCharacterSoftLocked('gold','Champion')`));
+assert.equal((evaluate('quickSpecPicker(players[0])').match(/class="spec-toggle chosen softlocked"/g)||[]).length,1);
+assert(evaluate('quickSpecPicker(players[0])').includes('Soft locked: this character is assigned to multiple runs'));
+console.log('Passed: gold borders mark the repeated player/class spec only, with explanatory tooltip.');
