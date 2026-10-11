@@ -6,6 +6,12 @@ Each selected class/spec supplies its native role. Role priorities rank only cla
 
 Role assignments describe required/preferred coverage and placement. Their derived role counts are an initial staffing guide, not a replacement for detailed validation. Class/spec overrides change provider reach; they add no staffing demand and remove no requirement. A presence requirement can share a role slot with the same player.
 
+## Repeat-character policy
+
+New and legacy sessions default to **Prioritize unlocked**: fill spots first, then minimize escalating repeats, then required-comp deficits, coverage and soft quality. This can deliberately return teams with flagged required deficits. **Prioritize comp** keeps required deficits first, then repeats, coverage and soft quality. Both policies retain availability, one player per raid, overlap and capacity checks. The policy is saved in sessions and sent to the background worker.
+
+Unlocked mode also uses a global maximum-flow fresh-character allocation for sequential schedules when the greedy fresh attempt leaves empty spots. It reserves each player/class at most once across the schedule and chooses specs afterwards. This avoids earlier runs stranding later runs. Overlapping schedules use the existing conflict-aware allocator. Local improvement and final repair have time budgets; exact optimality is not guaranteed.
+
 ## Search stages
 
 The planner first searches with repeated player/class assignments excluded. Confirmed and tentative signups participate in the same normal selection pool. Confirmed substitute suggestions are checked independently for tentative assignments. Only unresolved required deficits or empty spots open a repeat-allowed fallback. Each stage retains the best fully evaluated result; failing a bounded fresh search is not proof of infeasibility.
@@ -49,4 +55,10 @@ Roster class preferences are binary: starred classes are first choice, unstarred
 
 ## Recommended run configurations
 
-After generating the current schedule, a bounded background check compares sequential and parallel templates. It prioritizes required deficits, player coverage, avoiding repeats, distinct player/class assignments, then an earlier finish. The card reports the best configuration checked, not a globally optimal guarantee. Applying it updates runs and copies last-run availability for new runs; generation is a separate action.
+After generating the current schedule, a bounded background check compares sequential and parallel templates. It follows the selected repeat-character policy, then favors coverage, distinct player/class assignments and an earlier finish. The card reports the best configuration checked, not a globally optimal guarantee. Applying it updates runs and copies last-run availability for new runs; generation is a separate action.
+
+## Uploaded session diagnostic, 2026-10-11
+
+The five-run, 23-player session has 60 spots and 67 selected player/class combinations. Its saved schedule contains 9 repeated assignments across 8 players. A separate integer-program feasibility check of role minima and additive capped heal-cut contribution found a minimum of 2 repeated assignments; that resulting schedule passed the planner’s complete fellowship and constraint validation with all five raids valid. With heal cut removed, the same feasibility model could fill all 60 spots without repeats. These are diagnostics, not a solver added to the website.
+
+The new unlocked allocation was replayed on this session: all 60 spots filled with zero repeated player/classes, with unmet healer/debuffer/heal-cut goals explicitly flagged. Comp-first heuristic search remains bounded and can use more repeats than the theoretical minimum.
