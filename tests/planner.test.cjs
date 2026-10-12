@@ -13,6 +13,18 @@ vm.runInContext(`let rule=newRule('presence');rule.config={className:'Hunter',sp
 vm.runInContext(`constraints=[];size=6;players=players.slice(0,1);generateTeams();`,ctx);assert.equal(vm.runInContext('teams[0].members.length',ctx),1);
 console.log('Passed: template deletion persists and preserves active rules; surplus buffers avoided; distinct classes selected; required duplicate classes respected; partial teams retained.');
 function evaluate(code){return vm.runInContext(code,ctx)}
+evaluate(`size=4;constraints=[];fellowshipSetup=emptyFellowshipSetup();template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};players=[];
+let dupMembers=(n,pad)=>[...Array.from({length:n},(_,i)=>({id:'dup'+i,c:'Hunter',spec:'Red',role:'DPS'})),...pad];
+let padUnique=(start,n)=>Array.from({length:n},(_,i)=>({id:'u'+start+i,c:['Champion','Burglar','Warden','Mariner'][i],spec:'Red',role:'DPS'}));
+let pairPen=classDuplicatePenalty(dupMembers(2,[])),tripPen=classDuplicatePenalty(dupMembers(3,[])),quadPen=classDuplicatePenalty(dupMembers(4,[])),twoPair=classDuplicatePenalty([{id:'a',c:'Hunter',role:'DPS'},{id:'b',c:'Hunter',role:'DPS'},{id:'c',c:'Champion',role:'DPS'},{id:'d',c:'Champion',role:'DPS'}]);
+let pairTeam=[{id:1,time:18,members:dupMembers(2,padUnique(0,2))}];let tripTeam=[{id:1,time:18,members:dupMembers(3,padUnique(10,1))}];`);
+assert.equal(evaluate('pairPen'),30000);
+assert(evaluate('tripPen>pairPen*3'),'three of a kind escalates past three pair-units');
+assert(evaluate('quadPen>tripPen*2'),'four of a kind escalates past a triple');
+assert(evaluate('tripPen>twoPair'),'one triple is worse than two separate pairs');
+assert(evaluate('scheduleMetrics(tripTeam).diversity>scheduleMetrics(pairTeam).diversity'));
+assert(evaluate('betterSchedule(scheduleObjective(pairTeam),scheduleObjective(tripTeam))'));
+console.log('Passed: duplicate-class penalty escalates for triples and quadruples.');
 evaluate(`size=12;constraints=[];fellowshipSetup=emptyFellowshipSetup();fellowshipSetup.rules=[{role:'Tank',className:'Any',specs:[],target:'together',minimum:2,preferred:2,strength:'hard'},{role:'Healer',className:'Any',specs:[],target:'tank',minimum:2,preferred:2,strength:'hard'},{role:'Buffer',className:'Captain',specs:['Red'],target:'dps',minimum:1,preferred:1,strength:'hard'}];let member=(id,c,spec,role)=>({id,name:id,c,spec,role,available:[true],choices:[{c,spec,role}],max:1});let fixture=[member('t1','Guardian','Blue','Tank'),member('t2','Champion','Blue','Tank'),member('h1','Minstrel','Blue','Healer'),member('h2','Rune-keeper','Blue','Healer'),member('buf','Captain','Red','Buffer'),member('deb','Burglar','Yellow','Debuffer'),...Array.from({length:6},(_,i)=>member('d'+i,'Hunter','Red','DPS'))];let placed=assignFellowships(fixture);let identities=fellowshipIdentities(placed);`);
 assert(evaluate('evaluateFellowshipSetup(placed).every(r=>r.pass)'));assert.equal(evaluate('placed[identities.tank].filter(p=>p.role==="Healer").length'),2);assert.equal(evaluate('placed[identities.dps].filter(p=>p.role==="DPS").length'),5);assert(evaluate('placed.every(g=>g.length<=6)'));
 evaluate(`fellowshipSetup=emptyFellowshipSetup();fellowshipSetup.rules=[{role:'Healer',className:'Any',specs:[],target:'each',minimum:1,preferred:1,strength:'hard'}];fellowshipSetup.exceptions=[{className:'Beorning',specs:['Yellow'],role:'Healer',reach:'any',placement:'either'}];let coverageGroups=[[member('tank','Guardian','Blue','Tank')],[member('bear','Beorning','Yellow','Healer'),member('mini','Minstrel','Blue','Healer'),member('d','Hunter','Red','DPS')]];`);
