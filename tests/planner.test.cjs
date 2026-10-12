@@ -297,16 +297,31 @@ evaluate(`cycleClassExperience('exp','Hunter');`);
 assert.equal(evaluate(`experienceState(players[0],'Hunter')`),'default');
 assert(evaluate('quickSpecPicker(players[0]).includes("classexp")'));
 assert(evaluate('signupView().includes("Exp stars")'));
-// Inexperienced DPS offset by experienced DPS beats two inexperienced DPS; healer inexp not offset by DPS exp.
+// Multi-seat roles balance Exp/Inexp on their own; singleton roles use the whole group. Defaults do not offset Inexp.
 evaluate(`lockPriority='gearing';size=2;duration=1;constraints=[];fellowshipSetup=emptyFellowshipSetup();rolePriorities={};template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};
-players=[{id:'inexpD',name:'ID',available:[true],max:1,inexperiencedClasses:['Hunter'],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]},{id:'expD',name:'ED',available:[true],max:1,experiencedClasses:['Champion'],choices:[{c:'Champion',spec:'Red',role:'DPS'}]},{id:'inexpD2',name:'ID2',available:[true],max:1,inexperiencedClasses:['Burglar'],choices:[{c:'Burglar',spec:'Red',role:'DPS'}]},{id:'inexpH',name:'IH',available:[true],max:1,inexperiencedClasses:['Minstrel'],choices:[{c:'Minstrel',spec:'Blue',role:'Healer'}]}];
+players=[{id:'inexpD',name:'ID',available:[true],max:1,inexperiencedClasses:['Hunter'],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]},{id:'expD',name:'ED',available:[true],max:1,experiencedClasses:['Champion'],choices:[{c:'Champion',spec:'Red',role:'DPS'}]},{id:'inexpD2',name:'ID2',available:[true],max:1,inexperiencedClasses:['Burglar'],choices:[{c:'Burglar',spec:'Red',role:'DPS'}]},{id:'inexpH',name:'IH',available:[true],max:1,inexperiencedClasses:['Minstrel'],choices:[{c:'Minstrel',spec:'Blue',role:'Healer'}]},{id:'defH',name:'DH',available:[true],max:1,choices:[{c:'Rune-keeper',spec:'Blue',role:'Healer'}]},{id:'expH',name:'EH',available:[true],max:1,experiencedClasses:['Captain'],choices:[{c:'Captain',spec:'Blue',role:'Healer'}]}];
 let offsetOk=[{id:1,source:0,time:18,members:[{...players[0],...players[0].choices[0]},{...players[1],...players[1].choices[0]}]}];
 let twoInexp=[{id:1,source:0,time:18,members:[{...players[0],...players[0].choices[0]},{...players[2],...players[2].choices[0]}]}];
-let crossRole=[{id:1,source:0,time:18,members:[{...players[3],...players[3].choices[0]},{...players[1],...players[1].choices[0]}]}];
+let singletonCross=[{id:1,source:0,time:18,members:[{...players[3],...players[3].choices[0]},{...players[1],...players[1].choices[0]}]}];
+let healDefault=[{id:1,source:0,time:18,members:[{...players[3],...players[3].choices[0]},{...players[4],...players[4].choices[0]}]}];
+let healNeutral=[{id:1,source:0,time:18,members:[{...players[3],...players[3].choices[0]},{...players[5],...players[5].choices[0]}]}];
+let healDefaultWithExpDps=[{id:1,source:0,time:18,members:[{...players[3],...players[3].choices[0]},{...players[4],...players[4].choices[0]},{...players[1],...players[1].choices[0]}]}];
 `);
 assert(evaluate('betterSchedule(scheduleObjective(offsetOk),scheduleObjective(twoInexp))'));
-assert(evaluate('experienceDeficitPenalty(crossRole[0].members,2)>experienceDeficitPenalty(offsetOk[0].members,2)'));
+assert.equal(evaluate('experienceDeficitPenalty(offsetOk[0].members,2)'),0);
+assert.equal(evaluate('experienceDeficitPenalty(singletonCross[0].members,2)'),0,'singleton roles use whole-group Exp/Inexp');
+assert(evaluate('experienceDeficitPenalty(healDefault[0].members,2)>experienceDeficitPenalty(healNeutral[0].members,2)'),'Inexp+default healers worse than Inexp+Exp');
+assert.equal(evaluate('experienceDeficitPenalty(healNeutral[0].members,2)'),0);
+assert(evaluate('experienceDeficitPenalty(healDefaultWithExpDps[0].members,3)>0'),'Exp DPS does not cancel a multi-healer Inexp deficit');
 assert.equal(evaluate('experienceDeficitPenalty([],6)'),0);
+// End-to-end: with two healer seats, pair Inexp with Exp rather than a default healer.
+evaluate(`size=6;template={Tank:[0,0],Healer:[2,2],Debuffer:[0,0],Buffer:[0,0]};runs=[{id:1,source:0,time:18,label:'Run 1'}];suggestSchedule=false;
+players=[{id:'ih',name:'InexpHeal',max:1,available:[true],inexperiencedClasses:['Minstrel'],choices:[{c:'Minstrel',spec:'Blue',role:'Healer'}]},{id:'eh',name:'ExpHeal',max:1,available:[true],experiencedClasses:['Rune-keeper'],choices:[{c:'Rune-keeper',spec:'Blue',role:'Healer'}]},{id:'dh',name:'DefHeal',max:1,available:[true],choices:[{c:'Beorning',spec:'Yellow',role:'Healer'}]},...Array.from({length:6},(_,i)=>({id:'d'+i,name:'D'+i,max:1,available:[true],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}))];
+generateTeams();let healers=teams[0].members.filter(m=>m.role==='Healer');`);
+assert.equal(evaluate('healers.length'),2);
+assert(evaluate('healers.some(m=>m.id==="ih")'));
+assert(evaluate('healers.some(m=>m.id==="eh")'),'Exp healer pairs with Inexp healer');
+assert(!evaluate('healers.some(m=>m.id==="dh")'),'default healer is not preferred beside Inexp');
 // Parallel split of unmatched inexperience preferred over concentrating it.
 evaluate(`size=6;players=[{id:'n0',name:'n0',available:[true],max:1,inexperiencedClasses:['Hunter'],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]},{id:'n1',name:'n1',available:[true],max:1,inexperiencedClasses:['Champion'],choices:[{c:'Champion',spec:'Red',role:'DPS'}]},{id:'n2',name:'n2',available:[true],max:1,inexperiencedClasses:['Burglar'],choices:[{c:'Burglar',spec:'Red',role:'DPS'}]},{id:'n3',name:'n3',available:[true],max:1,inexperiencedClasses:['Warden'],choices:[{c:'Warden',spec:'Red',role:'DPS'}]},...Array.from({length:8},(_,i)=>({id:'o'+i,name:'o'+i,available:[true],max:1,choices:[{c:'Mariner',spec:'Red',role:'DPS'}]}))];
 let expSpread=scheduleMetrics([{id:1,source:0,time:18,members:[players[0],players[1],players[4],players[5],players[6],players[7]].map(p=>({...p,...p.choices[0]}))},{id:2,source:0,time:18,members:[players[2],players[3],players[8],players[9],players[10],players[11]].map(p=>({...p,...p.choices[0]}))}]);

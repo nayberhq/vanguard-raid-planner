@@ -2,18 +2,35 @@
 function scheduleFeasible(schedule){let characterSeen=new Set();if(noRepeatSearch)for(let t of schedule)for(let m of t.members){let key=characterKey(m);if(characterSeen.has(key))return false;characterSeen.add(key)}let occupied=new Map(),playerIndex=new Map(players.map(p=>[p.id,p]));for(let t of schedule){let ids=new Set();if(t.members.length>size)return false;if(typeof rolesWithinHardCaps==='function'&&!rolesWithinHardCaps(t.members))return false;for(let m of t.members){let p=playerIndex.get(m.id);if(!p||ids.has(m.id)||!availableForRun(p,t)||!choicesFor(p,t).some(c=>c.c===m.c&&c.spec===m.spec&&c.role===m.role&&(!m.charId||c.charId===m.charId)))return false;ids.add(m.id);let times=occupied.get(m.id)||[];if(times.some(time=>Math.abs(time-t.time)+1e-8<duration))return false;times.push(t.time);occupied.set(m.id,times)}}return true}
 function searchScheduleKey(schedule){return JSON.stringify(schedule.map(t=>[t.id,t.members.map(m=>[m.id,m.charId||'',m.c,m.spec,m.role]).sort()]))}
 function memberExperienceState(m){return typeof experienceState==='function'?experienceState(m,m?.c):'default'}
-// Soft experience balance: unsupported inexperience overall and per role. Uses intended capacity.
+// Soft Exp/Inexp balance. Roles with 2+ seats are scored independently; singleton-role markers use the whole group.
+function experienceMarkedCounts(members){
+ let seen=new Set(),inexp=0,exp=0;
+ for(let m of members||[]){
+  if(!m)continue;let id=String(m.id);if(seen.has(id))continue;seen.add(id);
+  let state=memberExperienceState(m);
+  if(state==='inexperienced')inexp++;else if(state==='experienced')exp++;
+ }
+ return {inexp,exp,deficit:Math.max(0,inexp-exp)};
+}
+function experienceImbalancePenalty(members,capacity){
+ let cap=Number(capacity);if(!Number.isFinite(cap)||cap<=0)return 0;
+ let deficit=experienceMarkedCounts(members).deficit;return deficit*deficit/cap;
+}
 function experienceDeficitPenalty(members,capacity){
  let cap=Number(capacity);if(!Number.isFinite(cap)||cap<=0||!Array.isArray(members)||!members.length)return 0;
- let seen=new Set(),inexp=0,exp=0,byRole={};
+ let seen=new Set(),byRole={};
  for(let m of members){
   if(!m)continue;let id=String(m.id);if(seen.has(id))continue;seen.add(id);
-  let state=memberExperienceState(m);if(state==='default')continue;
-  let role=m.role||'DPS';byRole[role]??={inexp:0,exp:0};
-  if(state==='inexperienced'){inexp++;byRole[role].inexp++}else if(state==='experienced'){exp++;byRole[role].exp++}
+  let role=m.role||'DPS';(byRole[role]??=[]).push(m);
  }
- let overall=Math.max(0,inexp-exp),penalty=overall*overall/cap;
- for(let role of Object.keys(byRole)){let d=Math.max(0,byRole[role].inexp-byRole[role].exp),slots=Math.max(1,byRole[role].inexp+byRole[role].exp);penalty+=d*d/slots}
+ let penalty=0,singletonMarked=false;
+ for(let role of Object.keys(byRole)){
+  let group=byRole[role];
+  if(group.length>1){penalty+=experienceImbalancePenalty(group,group.length);continue}
+  let state=memberExperienceState(group[0]);
+  if(state==='inexperienced'||state==='experienced')singletonMarked=true;
+ }
+ if(singletonMarked)penalty+=experienceImbalancePenalty(members,cap);
  return penalty;
 }
 function experienceConcentration(groups,capacity){
