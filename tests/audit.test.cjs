@@ -7,14 +7,15 @@ const orders={gearing:['comp','constraintsSevere','joint','constraintsHard','pre
 for(const [mode,tiers] of Object.entries(orders)){
  e(`lockPriority='${mode}'`);
  for(let i=0;i<tiers.length;i++)for(let j=i+1;j<tiers.length;j++){
- const key=t=>t==='joint'?'playerPreferences':t;
+ const key=t=>t==='joint'?'repeats':t;
  assert(e(`betterSchedule(selectionObjective({...zero,${key(tiers[j])}:1000000000}),selectionObjective({...zero,${key(tiers[i])}:1}))`),`${mode}: ${tiers[i]} before ${tiers[j]}`);
  }
 }
-// Severe shortfalls beat huge preference/lock cost; mild hard deficit can still lose to joint gearing cost.
+// Severe and character locks outrank mild hard; player preferences are last and lose to mild hard.
 e(`lockPriority='gearing'`);
-assert(e(`betterSchedule(selectionObjective({...zero,playerPreferences:1e12}),selectionObjective({...zero,constraintsSevere:0.01}))`),'severe before joint');
-assert(e(`betterSchedule(selectionObjective({...zero,constraintsHard:0.1}),selectionObjective({...zero,playerPreferences:1}))`),'joint before mild hard');
+assert(e(`betterSchedule(selectionObjective({...zero,repeats:1e12}),selectionObjective({...zero,constraintsSevere:0.01}))`),'severe before locks');
+assert(e(`betterSchedule(selectionObjective({...zero,constraintsHard:0.1}),selectionObjective({...zero,repeats:1}))`),'locks before mild hard');
+assert(e(`betterSchedule(selectionObjective({...zero,playerPreferences:1e12}),selectionObjective({...zero,constraintsHard:0.1}))`),'mild hard before player preferences');
 assert(e(`betterSchedule(selectionObjective({...zero,constraintsHard:0.1}),selectionObjective({...zero,constraintsHard:0.6}))`),'lower continuous hard wins on ties');
 e(`size=1;duration=1;constraints=[];fellowshipSetup=emptyFellowshipSetup();rolePriorities={};template={Tank:[0,0],Healer:[1,1],Debuffer:[0,0],Buffer:[0,0]};runs=[{id:1,source:0,time:18,label:'One'},{id:2,source:1,time:19,label:'Two'}];players=[{id:'heal',name:'Heal',max:2,available:[true,true],choices:[{c:'Minstrel',spec:'Blue',role:'Healer'}]},{id:'dps',name:'DPS',max:2,available:[true,true],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}];`);
 for(const mode of Object.keys(orders)){
