@@ -54,19 +54,22 @@ function fellowshipExperienceConcentration(schedule){
 function raidExperienceConcentration(schedule){
  return (schedule||[]).reduce((n,t)=>n+experienceDeficitPenalty(t.members,size),0);
 }
+// Soft: extras on non-kinsmen. Lex after uncovered so first-run coverage always wins.
+function playerIsKinsman(p){return typeof isKinsman==='function'?isKinsman(p):!!(p&&p.kinsman)}
+function kinsmanExtraMissFromCounts(getCount){return (players||[]).reduce((n,p)=>playerIsKinsman(p)?n:n+Math.max(0,(Number(getCount(p.id))||0)-1),0)}
 function severeConstraintDeficit(deficit){return Math.max(0,(Number(deficit)||0)-0.25)}
 function scheduleMetrics(schedule,fast=false){
  let groups=schedule.map(t=>({...t,fellowships:assignFellowships(t.members,fast)})),checks=evaluateScheduleRules(groups,fast),deficit=r=>Math.max(1e-6,r.deficit??r.preferredDeficit??1),comp=checks.filter(r=>r.scope==='fellowship_setup'&&r.strength==='hard'&&!r.pass).reduce((n,r)=>n+deficit(r),0),hardChecks=checks.filter(r=>r.scope!=='fellowship_setup'&&r.strength==='hard'&&!r.pass),constraintsHard=hardChecks.reduce((n,r)=>n+deficit(r),0),constraintsSevere=hardChecks.reduce((n,r)=>n+severeConstraintDeficit(deficit(r)),0),constraintsSoft=checks.filter(r=>r.scope!=='fellowship_setup').reduce((n,r)=>n+(r.preferredDeficit??(r.strength==='soft'?r.deficit:0)??0),0),seen=new Map(),used=new Map(),preferredComp=checks.filter(r=>r.scope==='fellowship_setup').reduce((n,r)=>n+(r.preferredDeficit??(r.strength==='soft'?r.deficit:0)??0),0)*4000+scarcityConcentration(schedule)*SCARCITY_CONCENTRATION,repeats=0,inexperiencedLocks=0,defaultLocks=0,experiencedLocks=0,playerPreferences=0,diversity=0;
  for(let t of schedule){comp+=Math.max(0,size-t.members.length)+raidLeaderDeficit(t.members);for(let [role,[min,pref]] of Object.entries(template)){let count=t.members.filter(m=>m.role===role).length,hardMax=typeof roleHardMax==='function'?roleHardMax(role):Math.min(size,Math.max(min,pref));comp+=Math.max(0,min-count)+Math.max(0,count-hardMax);preferredComp+=Math.max(0,pref-count)*6000}let counts={},prioritySeen=new Set();for(let m of t.members){counts[m.c]=(counts[m.c]||0)+1;let key=characterKey(m),prior=seen.get(key)||0;repeats+=prior*prior;if(prior){let state=memberExperienceState(m);if(state==='inexperienced')inexperiencedLocks+=prior;else if(state==='experienced')experiencedLocks+=prior;else defaultLocks+=prior}seen.set(key,prior+1);used.set(m.id,(used.get(m.id)||0)+1);playerPreferences+=playerPreferenceCost(m,m.c);preferredComp+=rolePriorityCost(m,prioritySeen)}diversity+=typeof classDuplicatePenalty==='function'?classDuplicatePenalty(t.members):Object.values(counts).reduce((n,v)=>n+Math.pow(Math.max(0,v-1),2)*30000,0)}
  let parallelBalance=schedule.reduce((n,t)=>n+Math.pow(size-t.members.length,2),0);
- return {parallelBalance,comp,constraintsSevere,constraintsHard,constraintsSoft,repeats,inexperiencedLocks,defaultLocks,experiencedLocks,uncovered:uncovered(schedule).length,playerPreferences,preferredComp,quality:playerPreferences+preferredComp+diversity,diversity,uneven:players.reduce((n,p)=>n+Math.pow(used.get(p.id)||0,2),0),experienceRaidConcentration:raidExperienceConcentration(schedule)+parallelExperienceConcentration(schedule),experienceFellowshipConcentration:fellowshipExperienceConcentration(groups)};
+ return {parallelBalance,comp,constraintsSevere,constraintsHard,constraintsSoft,repeats,inexperiencedLocks,defaultLocks,experiencedLocks,uncovered:uncovered(schedule).length,kinsmanExtraMiss:kinsmanExtraMissFromCounts(id=>used.get(id)||0),playerPreferences,preferredComp,quality:playerPreferences+preferredComp+diversity,diversity,uneven:players.reduce((n,p)=>n+Math.pow(used.get(p.id)||0,2),0),experienceRaidConcentration:raidExperienceConcentration(schedule)+parallelExperienceConcentration(schedule),experienceFellowshipConcentration:fellowshipExperienceConcentration(groups)};
 }
 function scheduleHardDeficit(schedule,fast=false){let m=scheduleMetrics(schedule,fast);return m.comp+m.constraintsHard}
 function raidCorrectness(raid,fast=false){let m=scheduleMetrics([{...raid,members:raid.members||[]}],fast);return m.comp+m.constraintsHard}
 function scheduleCorrectness(schedule,fast=false){return scheduleHardDeficit(schedule,fast)}
 // One policy definition for local improvement, global repair and recommendations.
 function selectionObjective(m){
- let tail=[m.uncovered,m.experienceRaidConcentration||0,m.experienceFellowshipConcentration||0,m.parallelBalance||0,m.diversity,m.uneven];
+ let tail=[m.uncovered,m.kinsmanExtraMiss||0,m.experienceRaidConcentration||0,m.experienceFellowshipConcentration||0,m.parallelBalance||0,m.diversity,m.uneven];
  let inexperiencedLocks=(m.inexperiencedLocks||0)*INEXPERIENCED_LOCK_COST,defaultLocks=(m.defaultLocks||0)*DEFAULT_LOCK_COST,locks=m.repeats*100000+defaultLocks+inexperiencedLocks-(m.experiencedLocks||0)*EXPERIENCED_LOCK_DISCOUNT,prefs=m.playerPreferences||0;
  // Player class preferences are last in every mode; a soft end-pass applies them only when earlier tiers do not degrade.
  if(lockPriority==='quality')return [m.comp,m.preferredComp+inexperiencedLocks,m.constraintsHard,m.constraintsSoft,locks,...tail,prefs];
@@ -79,6 +82,7 @@ function localSelectionObjective(members,run,used,characters,fast=false){
  let priorLocks=state=>members.reduce((n,p)=>n+(memberExperienceState(p)===state?characters[characterKey(p)]||0:0),0);m.inexperiencedLocks=priorLocks('inexperienced');m.experiencedLocks=priorLocks('experienced');m.defaultLocks=members.reduce((n,p)=>{let prior=characters[characterKey(p)]||0;return n+(prior&&memberExperienceState(p)==='default'?prior:0)},0);
  if(scarcityBids)m.preferredComp+=scarcityExcess(members,scarcityBids);
  let ids=new Set(members.map(p=>p.id));m.uncovered=players.filter(p=>!used[p.id]?.length&&!ids.has(p.id)).length;
+ m.kinsmanExtraMiss=kinsmanExtraMissFromCounts(id=>(used[id]?.length||0)+(ids.has(id)?1:0));
  m.uneven=players.reduce((n,p)=>n+Math.pow((used[p.id]?.length||0)+(ids.has(p.id)?1:0),2),0);
  // Schedule-wide constraints include previous runs, rather than treating every local team as a new schedule.
  if(constraints.some(r=>r.enabled&&!['each_raid','each_fellowship'].includes(r.scope))){let full=scheduleMetrics([...constraintContext.filter(t=>t.id!==run.id),{...run,members}],fast);m.constraintsSevere=full.constraintsSevere;m.constraintsHard=full.constraintsHard;m.constraintsSoft=full.constraintsSoft}

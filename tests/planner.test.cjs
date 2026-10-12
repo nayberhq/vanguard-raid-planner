@@ -424,6 +424,47 @@ assert.equal(evaluate('!!players.find(p=>p.id==="lead1").raidLeader'),true);
 assert.equal(evaluate('!!players.find(p=>p.id==="dps1").raidLeader'),false);
 console.log('Passed: raid-leader roster flag, hard-comp requirement, session and RH preserve.');
 
+// Kin soft priority: after full coverage, extras prefer kinsmen; coverage still beats kin extras.
+evaluate(`lockPriority='gearing';size=2;duration=1;constraints=[];fellowshipSetup=emptyFellowshipSetup();rolePriorities={};template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};suggestSchedule=false;
+let seat=(p)=>({...p,...p.choices[0]});
+players=[{id:'kin',name:'Kin',max:2,available:[true,true],kinsman:true,choices:[{c:'Hunter',spec:'Red',role:'DPS'}]},{id:'guest',name:'Guest',max:2,available:[true,true],choices:[{c:'Champion',spec:'Red',role:'DPS'}]},{id:'other',name:'Other',max:2,available:[true,true],choices:[{c:'Burglar',spec:'Red',role:'DPS'}]}];
+runs=[{id:1,source:0,time:18,label:'One'},{id:2,source:1,time:19,label:'Two'}];
+let kinExtra=[{...runs[0],members:[seat(players[0]),seat(players[1])]},{...runs[1],members:[seat(players[0]),seat(players[2])]}];
+let guestExtra=[{...runs[0],members:[seat(players[0]),seat(players[1])]},{...runs[1],members:[seat(players[1]),seat(players[2])]}];
+let leaveOtherOut=[{...runs[0],members:[seat(players[0]),seat(players[1])]},{...runs[1],members:[seat(players[0]),seat(players[1])]}];
+let coverOther=[{...runs[0],members:[seat(players[0]),seat(players[2])]},{...runs[1],members:[seat(players[1]),seat(players[2])]}];
+`);
+assert.equal(evaluate('scheduleMetrics(kinExtra).uncovered'),0);
+assert.equal(evaluate('scheduleMetrics(guestExtra).uncovered'),0);
+assert.equal(evaluate('scheduleMetrics(kinExtra).kinsmanExtraMiss'),0);
+assert.equal(evaluate('scheduleMetrics(guestExtra).kinsmanExtraMiss'),1);
+assert(evaluate('betterSchedule(scheduleObjective(kinExtra),scheduleObjective(guestExtra))'),'kin extra beats guest extra when coverage ties');
+assert.equal(evaluate('scheduleMetrics(leaveOtherOut).uncovered'),1);
+assert.equal(evaluate('scheduleMetrics(coverOther).uncovered'),0);
+assert(evaluate('betterSchedule(scheduleObjective(coverOther),scheduleObjective(leaveOtherOut))'),'covering an uncovered player beats giving kin a second run');
+assert(evaluate('signupView().includes("> Kin")'));
+evaluate(`hasGenerated=true;teams=kinExtra;dirty=false;`);
+assert(evaluate('teamView().includes("kinsmanbadge")'));
+evaluate(`toggleKinsman('guest');size=6;hasGenerated=false;teams=[];let packedKin=compactSessionSnapshot();`);
+assert.equal(evaluate('!!packedKin.players.find(p=>p.id==="kin").kinsman'),true);
+assert.equal(evaluate('!!packedKin.players.find(p=>p.id==="guest").kinsman'),true);
+assert.equal(evaluate('"kinsman" in packedKin.players.find(p=>p.id==="other")'),false);
+evaluate(`restoreSession(JSON.parse(JSON.stringify(packedKin)));`);
+assert.equal(evaluate('!!players.find(p=>p.id==="kin").kinsman'),true);
+assert.throws(()=>evaluate(`validateSession({...compactSessionSnapshot(),players:[{id:'bad',name:'Bad',available:[true],max:1,kinsman:'yes',choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}]})`));
+evaluate(`rhApplyMode='replace';setRHEvents([{signUps:[{userId:'kin',name:'Kin',className:'Hunter',cSpecName:'Red'},{userId:'guest',name:'Guest',className:'Champion',cSpecName:'Red'}]}]);applyRH();`);
+assert.equal(evaluate('!!players.find(p=>p.id==="kin").kinsman'),true);
+assert.equal(evaluate('!!players.find(p=>p.id==="guest").kinsman'),true);
+// End-to-end: three seats for two players → cover both, then give the extra to kin.
+evaluate(`size=1;duration=1;constraints=[];fellowshipSetup=emptyFellowshipSetup();rolePriorities={};template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};suggestSchedule=false;
+players=[{id:'k1',name:'K1',max:3,available:[true,true,true],kinsman:true,choices:[{c:'Hunter',spec:'Red',role:'DPS'}]},{id:'g1',name:'G1',max:3,available:[true,true,true],choices:[{c:'Champion',spec:'Red',role:'DPS'}]}];
+runs=[{id:1,source:0,time:18,label:'One'},{id:2,source:1,time:19,label:'Two'},{id:3,source:2,time:20,label:'Three'}];teams=assign(runs);`);
+assert.equal(evaluate('uncovered(teams).length'),0);
+assert.equal(evaluate('teams.filter(t=>t.members.some(m=>m.id==="k1")).length'),2,'kin gets the extra seat');
+assert.equal(evaluate('teams.filter(t=>t.members.some(m=>m.id==="g1")).length'),1);
+assert.equal(evaluate('scheduleMetrics(teams).kinsmanExtraMiss'),0);
+console.log('Passed: kin roster toggle, soft multi-run priority after coverage, session and RH preserve.');
+
 // PNG export replaces individual Discord copy; markup is players + class icons + roles only.
 evaluate(`hasGenerated=true;dirty=false;size=2;template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};runs=[{id:1,source:0,time:18,label:'Alpha'},{id:2,source:1,time:19,label:'Beta'}];players=[{id:'pngA',name:'Alice',max:1,available:[true,true],raidLeader:true,experiencedClasses:['Guardian'],choices:[{c:'Guardian',spec:'Blue',role:'Tank'}]},{id:'pngB',name:'Bob',max:1,available:[true,true],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}];teams=[{...runs[0],members:[{id:'pngA',name:'Alice',c:'Guardian',spec:'Blue',role:'Tank'}],shortages:[{role:'Healer',count:1}]},{...runs[1],members:[{id:'pngB',name:'Bob',c:'Hunter',spec:'Red',role:'DPS'}]}];let pngView=teamView();let pngBoard=teamsPngMarkup();`);
 assert(evaluate('pngView.includes("Export PNG")&&pngView.includes("exportTeamsPng()")'));

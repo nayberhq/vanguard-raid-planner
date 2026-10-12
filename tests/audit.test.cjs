@@ -2,7 +2,7 @@ const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const ctx=vm.createContext({console,Intl,setTimeout(){},localStorage:{getItem(){return null},setItem(){}},document:{getElementById(){return {style:{},value:'0',close(){}}}}});
 for(const f of ['app','role-priorities','fellowship','constraints','search','background'])vm.runInContext(fs.readFileSync('public/'+f+'.js','utf8'),ctx);
 const e=s=>vm.runInContext(s,ctx);
-e(`let zero={comp:0,repeats:0,playerPreferences:0,preferredComp:0,constraintsSevere:0,constraintsHard:0,constraintsSoft:0,uncovered:0,parallelBalance:0,diversity:0,uneven:0};`);
+e(`let zero={comp:0,repeats:0,playerPreferences:0,preferredComp:0,constraintsSevere:0,constraintsHard:0,constraintsSoft:0,uncovered:0,kinsmanExtraMiss:0,parallelBalance:0,diversity:0,uneven:0};`);
 const orders={gearing:['comp','constraintsSevere','joint','constraintsHard','preferredComp','constraintsSoft'],quality:['comp','preferredComp','constraintsHard','constraintsSoft','joint']};
 for(const [mode,tiers] of Object.entries(orders)){
  e(`lockPriority='${mode}'`);
