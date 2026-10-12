@@ -26,13 +26,13 @@ e(`runs=runs.slice(0,1);template.Healer=[0,0];template.Buffer=[0,1];players=[{id
 e(`lockPriority='quality';teams=assign(runs)`);assert.equal(e('teams[0].members[0].c'),'Captain');assert(e('recommendationEligibility(teams).eligible'));assert(e('recommendationEligibility(teams).preferredDeficit>0||recommendationEligibility(teams).constraintsHard>0||recommendationEligibility(teams).constraintsSoft>0'));
 e(`lockPriority='gearing';teams=assign(runs)`);assert.equal(e('teams[0].members[0].c'),'Brawler');assert(e('recommendationEligibility(teams).eligible'));
 e(`lockPriority='gearing';teams=assign(runs)`);assert.equal(e('teams[0].members[0].c'),'Brawler');
-// Incomplete required composition is ineligible; no apply when nothing improves the layout.
-e(`template.Healer=[1,1];lockPriority='gearing';teams=assign(runs);dirty=false;parallel=false;extra=false;recommendedConfiguration=findRecommendedConfiguration(teams,200);let before=JSON.stringify(runs);applyRecommendedConfiguration()`);
-assert.equal(e('recommendedConfiguration'),null);assert.equal(e('JSON.stringify(runs)'),e('before'));assert(e('recommendedConfigurationHTML().includes("Layout check")||recommendedConfigurationHTML()===""'));
-// Policy-aligned config scores: required-comp failure loses; covering more players beats a thinner layout.
+// Suggest schedule off: no alternate search or apply.
+e(`template.Healer=[1,1];lockPriority='gearing';teams=assign(runs);dirty=false;suggestSchedule=false;recommendedConfiguration=findRecommendedConfiguration(teams,200);let before=JSON.stringify(runs);applyRecommendedConfiguration()`);
+assert.equal(e('recommendedConfiguration'),null);assert.equal(e('JSON.stringify(runs)'),e('before'));assert.equal(e('recommendedConfigurationHTML()'),'');
+// Correctness ranks empty teams worse; covering more players still wins on soft ties.
 e(`size=1;template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};constraints=[];fellowshipSetup=emptyFellowshipSetup();lockPriority='gearing';let one=[{id:1,source:0,time:18,label:'One',members:[{id:'a',name:'A',c:'Hunter',spec:'Red',role:'DPS'}]}],two=[{id:1,source:0,time:18,label:'One',members:[{id:'a',name:'A',c:'Hunter',spec:'Red',role:'DPS'}]},{id:2,source:0,time:18,label:'One · Group 2',group:2,members:[{id:'b',name:'B',c:'Champion',spec:'Red',role:'DPS'}]}],empty=[{id:1,source:0,time:18,label:'One',members:[]}];`);
-assert(e('betterSchedule(runConfigurationScore(one),runConfigurationScore(empty))'));
-assert(e('betterSchedule(runConfigurationScore(two),runConfigurationScore(one))'));
+assert(e('scheduleCorrectness(empty)>scheduleCorrectness(one)'));
+assert(e('betterRecommendedConfiguration(configurationSummary(two),configurationSummary(one))'));
 // Neutral classes are ordinary choices, even when a different class is starred.
 e(`constraints=[];template.Healer=[0,0];template.Buffer=[0,0];let neutral={...players[0],c:'Brawler',spec:'Red',role:'DPS'};players[0].preferredClasses=['Captain'];teams=[{...runs[0],members:[neutral]}]`);
 assert.equal(e('assignmentNotes(neutral,teams[0]).length'),0);
