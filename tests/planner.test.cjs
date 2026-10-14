@@ -315,7 +315,7 @@ assert.equal(evaluate(`experienceState(players[0],'Hunter')`),'inexperienced');
 evaluate(`cycleClassExperience('exp','Hunter');`);
 assert.equal(evaluate(`experienceState(players[0],'Hunter')`),'default');
 assert(evaluate('quickSpecPicker(players[0]).includes("classexp")'));
-assert(evaluate('signupView().includes("Exp stars")'));
+assert(evaluate('signupView().includes("rosterflag remove")'));
 // Multi-seat roles balance Exp/Inexp on their own; singleton roles use the whole group. Defaults do not offset Inexp.
 evaluate(`lockPriority='gearing';size=2;duration=1;constraints=[];fellowshipSetup=emptyFellowshipSetup();rolePriorities={};template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};
 players=[{id:'inexpD',name:'ID',available:[true],max:1,inexperiencedClasses:['Hunter'],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]},{id:'expD',name:'ED',available:[true],max:1,experiencedClasses:['Champion'],choices:[{c:'Champion',spec:'Red',role:'DPS'}]},{id:'inexpD2',name:'ID2',available:[true],max:1,inexperiencedClasses:['Burglar'],choices:[{c:'Burglar',spec:'Red',role:'DPS'}]},{id:'inexpH',name:'IH',available:[true],max:1,inexperiencedClasses:['Minstrel'],choices:[{c:'Minstrel',spec:'Blue',role:'Healer'}]},{id:'defH',name:'DH',available:[true],max:1,choices:[{c:'Rune-keeper',spec:'Blue',role:'Healer'}]},{id:'expH',name:'EH',available:[true],max:1,experiencedClasses:['Captain'],choices:[{c:'Captain',spec:'Blue',role:'Healer'}]}];
@@ -452,6 +452,8 @@ assert(evaluate('betterSchedule(scheduleObjective(coverOther),scheduleObjective(
 assert(evaluate('signupView().includes("title=\\"Primary\\"")'));
 assert(evaluate('signupView().includes("title=\\"Tentative\\"")'));
 assert(evaluate('signupView().includes("rostershrug")'));
+assert(evaluate('signupView().includes("rosterflag remove")'));
+assert(!evaluate('signupView().includes("Exp stars")||signupView().includes("Undo ")'));
 evaluate(`players[0].primary=true;delete players[0].kinsman;`);
 assert(evaluate(`/class="rosterflag primary selected"[^>]*aria-pressed="true"[^>]*onclick="togglePrimary\\('kin'\\)"/.test(signupView())`),'Primary icon reflects primary flag');
 evaluate(`togglePrimary('other');`);
