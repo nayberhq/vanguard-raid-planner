@@ -1,0 +1,35 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const ctx=vm.createContext({console,Intl,setTimeout(){},localStorage:{getItem(){return null},setItem(){}},document:{getElementById(){return {style:{},value:'0',close(){}}}}});
+for(const f of ['app','role-priorities','fellowship','constraints','search','allocation'])vm.runInContext(fs.readFileSync('public/'+f+'.js','utf8'),ctx);
+const e=s=>vm.runInContext(s,ctx);
+
+e(`size=1;duration=1;constraints=[];rolePriorities={};template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};fellowshipSetup=emptyFellowshipSetup();fellowshipSetup.enabled=false;suggestSchedule=true;dirty=false;recommendationRunLimit=2;
+players=[{id:'a',name:'A',available:[true,true],choices:[{c:'Hunter',spec:'Red',role:'DPS'},{c:'Champion',spec:'Red',role:'DPS'}]},{id:'b',name:'B',available:[true,false],choices:[{c:'Burglar',spec:'Red',role:'DPS'}]}];runs=[{id:1,source:0,time:18,label:'One'}];teams=assign(runs);let proposal=findRecommendedConfiguration(teams,2000);`);
+assert(e('proposal && proposal.totalTeams===3 && proposal.lockedPlayers===0'));
+assert(e('proposal.groups[0]===2 && proposal.groups[1]===1'));
+assert(e('proposal.teams.every(t=>t.members.every(p=>players.find(x=>x.id===p.id).available[t.source]))'));
+e(`runs=proposal.runs;teams=proposal.teams;let fallback=findRecommendedConfiguration(teams,2000);`);
+assert(e('fallback && fallback.secondBest && fallback.lockedPlayers===0'));
+assert(e('recommendedConfigurationHTML().includes("Second-best")'));
+assert(e('betterRecommendedConfiguration({correctness:0,lockedPlayers:0,totalTeams:3,uniquePlayers:2,runCount:2},{correctness:0,lockedPlayers:0,totalTeams:2,uniquePlayers:2,runCount:1})'));
+assert(e('betterRecommendedConfiguration({correctness:0,lockedPlayers:0,totalTeams:2,uniquePlayers:2,runCount:1},{correctness:0,lockedPlayers:0,totalTeams:2,uniquePlayers:2,runCount:2})'));
+e(`recommendationRunLimit=null;players.forEach(p=>p.available=[true]);runs=[{id:1,source:0,time:18,label:'One'}];teams=assign(runs);let bounded=findRecommendedConfiguration(teams,1000);`);
+assert(e('bounded && bounded.runCount===1 && bounded.totalTeams===2'));
+console.log('Passed: maximum unlocked teams, parallel tie-break, availability, second-best alternative, no invented future availability.');
+
+e(`recommendationRunLimit=5;players=[{id:'solo',name:'Solo',max:5,available:[true,true,true,true,true],tentativeRuns:[false,false,false,false,true],choices:['Hunter','Champion','Burglar','Mariner','Warden'].map(c=>({c,spec:'Red',role:'DPS'}))}];runs=Array.from({length:5},(_,i)=>({id:i+1,source:i,time:18+i,label:'Run '+(i+1)}));let shorterRuns=runs.slice(0,4);recommendedConfiguration={runs:shorterRuns,teams:assign(shorterRuns)};applyRecommendedConfiguration();`);
+assert.equal(e('runs.length'),4);
+assert.equal(e('recommendationRunLimit'),5);
+assert.equal(e('players[0].available.length'),5);
+assert(e('players[0].tentativeRuns[4]'));
+e(`let restoredShape=findRecommendedConfiguration(teams,2000);`);
+assert(e('restoredShape && restoredShape.runCount===5 && restoredShape.lockedPlayers===0'));
+assert.equal(e('sessionSnapshot().settings.recommendationRunLimit'),5);
+e(`recommendationRunLimit=1;players[0].available=Array(8).fill(true);runs=runs.slice(0,1);teams=assign(runs);let capped=findRecommendedConfiguration(teams,2000);`);
+assert(e('!capped || capped.runCount===1'));
+console.log('Passed: original limit survives shortening, fifth-slot availability/tentative status retained, five-slot layout reconsidered, excess availability cannot expand limit.');
+e(`size=6;players=[];teams=[];recommendations=[];hasGenerated=false;dirty=false;recommendationRunLimit=5;let savedLimit=sessionSnapshot();recommendationRunLimit=1;restoreSession(JSON.parse(JSON.stringify(savedLimit)));`);
+assert.equal(e('recommendationRunLimit'),5);
+e(`delete savedLimit.settings.recommendationRunLimit;restoreSession(JSON.parse(JSON.stringify(savedLimit)));`);
+assert.equal(e('recommendationRunLimit'),1);
+console.log('Passed: saved limits restored and legacy sessions use their configured slot count.');

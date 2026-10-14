@@ -67,7 +67,7 @@ function scheduleMetrics(schedule,fast=false){
 function scheduleHardDeficit(schedule,fast=false){let m=scheduleMetrics(schedule,fast);return m.comp+m.constraintsHard}
 function raidCorrectness(raid,fast=false){let m=scheduleMetrics([{...raid,members:raid.members||[]}],fast);return m.comp+m.constraintsHard}
 function scheduleCorrectness(schedule,fast=false){return scheduleHardDeficit(schedule,fast)}
-// One policy definition for local improvement, global repair and recommendations.
+// Legacy seed/repair policy. Production acceptance and recommendations use allocationObjective in allocation.js.
 function selectionObjective(m){
  let tail=[m.uncovered,m.kinsmanExtraMiss||0,m.experienceRaidConcentration||0,m.experienceFellowshipConcentration||0,m.parallelBalance||0,m.diversity,m.uneven];
  let inexperiencedLocks=(m.inexperiencedLocks||0)*INEXPERIENCED_LOCK_COST,defaultLocks=(m.defaultLocks||0)*DEFAULT_LOCK_COST,locks=m.repeats*100000+defaultLocks+inexperiencedLocks-(m.experiencedLocks||0)*EXPERIENCED_LOCK_DISCOUNT,prefs=m.playerPreferences||0;
@@ -163,7 +163,20 @@ function preferenceMutationPass(schedule,deadline=Infinity){
  }
  return changed?refreshScheduleDetails(current):schedule;
 }
-function repairShortlist(proposals){let severeFirst=[...proposals].sort((a,b)=>a.hardApprox-b.hardApprox||a.severeConstraintApprox-b.severeConstraintApprox||a.constraintApprox-b.constraintApprox||a.cheap-b.cheap),constraintFirst=[...proposals].sort((a,b)=>a.hardApprox-b.hardApprox||a.constraintApprox-b.constraintApprox||a.cheap-b.cheap),freshFirst=[...proposals].sort((a,b)=>a.hardApprox-b.hardApprox||a.repeatPenalty-b.repeatPenalty||a.cheap-b.cheap);return [...new Set([...proposals.slice(0,16),...severeFirst.slice(0,8),...constraintFirst.slice(0,8),...freshFirst.slice(0,8)])]}
+// Cheap experience scoring keeps useful balancing moves in the bounded shortlist.
+// Full scheduleObjective still decides whether a proposal can be accepted.
+function repairExperienceApprox(schedule){
+ let groups=schedule.map(t=>({...t,fellowships:baseFellowships(t.members)}));
+ return [raidExperienceConcentration(schedule)+parallelExperienceConcentration(schedule),fellowshipExperienceConcentration(groups)];
+}
+function repairShortlist(proposals){
+ let severeFirst=[...proposals].sort((a,b)=>a.hardApprox-b.hardApprox||a.severeConstraintApprox-b.severeConstraintApprox||a.constraintApprox-b.constraintApprox||a.cheap-b.cheap),constraintFirst=[...proposals].sort((a,b)=>a.hardApprox-b.hardApprox||a.constraintApprox-b.constraintApprox||a.cheap-b.cheap),freshFirst=[...proposals].sort((a,b)=>a.hardApprox-b.hardApprox||a.repeatPenalty-b.repeatPenalty||a.cheap-b.cheap);
+ let experienceFirst=[];
+ if(players.some(p=>p.experiencedClasses?.length||p.inexperiencedClasses?.length)){
+  experienceFirst=proposals.map(p=>({proposal:p,score:repairExperienceApprox(p.next)})).sort((a,b)=>a.proposal.hardApprox-b.proposal.hardApprox||a.proposal.severeConstraintApprox-b.proposal.severeConstraintApprox||a.score[0]-b.score[0]||a.score[1]-b.score[1]||a.proposal.cheap-b.proposal.cheap).slice(0,8).map(p=>p.proposal);
+ }
+ return [...new Set([...proposals.slice(0,16),...severeFirst.slice(0,8),...constraintFirst.slice(0,8),...freshFirst.slice(0,8),...experienceFirst])];
+}
 function refreshScheduleDetails(schedule){let characters={};for(let t of schedule){t.members=t.members.map(p=>{let key=characterKey(p),repeated=!!characters[key];characters[key]=(characters[key]||0)+1;return {...p,repeated}});t.shortages=Object.entries(template).filter(([r,v])=>t.members.filter(p=>p.role===r).length<v[0]).map(([r,v])=>({role:r,count:v[0]-t.members.filter(p=>p.role===r).length}));if(raidLeaderDeficit(t.members))t.shortages.push({role:'Raid leader',count:1});t.preferredShortages=Object.entries(template).filter(([r,v])=>t.members.filter(p=>p.role===r).length<v[1]).map(([r,v])=>({role:r,count:v[1]-t.members.filter(p=>p.role===r).length}));t.repeatCount=t.members.filter(p=>p.repeated).length;t.classDuplicates=t.members.length-new Set(t.members.map(p=>p.c)).size;t.members.sort((a,b)=>roleOrder.indexOf(a.role)-roleOrder.indexOf(b.role))}return schedule}
 function refineSchedule(schedule){if(typeof planningProgress==='function')planningProgress('Balancing all runs and checking alternate layouts…');if(!schedule.length||!scheduleFeasible(schedule))return schedule;let searchDeadline=Math.min(selectionDeadline,Date.now()+1500),cache=new Map(),objective=s=>{let key=searchScheduleKey(s);if(!cache.has(key))cache.set(key,scheduleObjective(s));return cache.get(key)},best=schedule,bestScore=objective(best);function climb(start,passes){let current=start,score=objective(current);for(let pass=0;pass<passes;pass++){if(Date.now()>searchDeadline)break;let change=null;for(let {next} of repairShortlist(repairCandidates(current,searchDeadline))){if(Date.now()>searchDeadline)break;let candidate=objective(next);if(betterSchedule(candidate,score)){score=candidate;change=next}}if(!change)break;current=change}return {current,score}}
 let polished=climb(best,3);best=polished.current;bestScore=polished.score;

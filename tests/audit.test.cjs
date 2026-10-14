@@ -1,6 +1,6 @@
 const fs=require('fs'),vm=require('vm'),assert=require('assert');
 const ctx=vm.createContext({console,Intl,setTimeout(){},localStorage:{getItem(){return null},setItem(){}},document:{getElementById(){return {style:{},value:'0',close(){}}}}});
-for(const f of ['app','role-priorities','fellowship','constraints','search','background'])vm.runInContext(fs.readFileSync('public/'+f+'.js','utf8'),ctx);
+for(const f of ['app','role-priorities','fellowship','constraints','search','allocation','background'])vm.runInContext(fs.readFileSync('public/'+f+'.js','utf8'),ctx);
 const e=s=>vm.runInContext(s,ctx);
 e(`let zero={comp:0,repeats:0,playerPreferences:0,preferredComp:0,constraintsSevere:0,constraintsHard:0,constraintsSoft:0,uncovered:0,kinsmanExtraMiss:0,parallelBalance:0,diversity:0,uneven:0};`);
 const orders={gearing:['comp','constraintsSevere','joint','constraintsHard','preferredComp','constraintsSoft'],quality:['comp','preferredComp','constraintsHard','constraintsSoft','joint']};
@@ -22,9 +22,9 @@ for(const mode of Object.keys(orders)){
  e(`lockPriority='${mode}';teams=assign(runs)`);
  assert.equal(e('scheduleMetrics(teams).comp'),0,mode);assert.equal(e('lockedPlayerCount(teams)'),1,mode);assert(e('scheduleFeasible(teams)'));
 }
-// Preferred staffing wins over heal-cut presence in quality mode; eligibility only requires required comp.
+// Declared hard presence is enforced before preferred staffing in both modes.
 e(`runs=runs.slice(0,1);template.Healer=[0,0];template.Buffer=[0,1];players=[{id:'flex',name:'Flex',max:1,available:[true],preferredClasses:['Brawler'],choices:[{c:'Captain',spec:'Red',role:'Buffer'},{c:'Brawler',spec:'Red',role:'DPS'}]}];let presence=newRule('presence');presence.config={className:'Brawler',spec:'Red',minimum:1};constraints=[presence];`);
-e(`lockPriority='quality';teams=assign(runs)`);assert.equal(e('teams[0].members[0].c'),'Captain');assert(e('recommendationEligibility(teams).eligible'));assert(e('recommendationEligibility(teams).preferredDeficit>0||recommendationEligibility(teams).constraintsHard>0||recommendationEligibility(teams).constraintsSoft>0'));
+e(`lockPriority='quality';teams=assign(runs)`);assert.equal(e('teams[0].members[0].c'),'Brawler');assert(e('validateAllocation(teams).valid'));
 e(`lockPriority='gearing';teams=assign(runs)`);assert.equal(e('teams[0].members[0].c'),'Brawler');assert(e('recommendationEligibility(teams).eligible'));
 e(`lockPriority='gearing';teams=assign(runs)`);assert.equal(e('teams[0].members[0].c'),'Brawler');
 // Suggest schedule off: no alternate search or apply.
@@ -45,8 +45,8 @@ assert.equal(e('players[0].tentativeRuns.join(",")'),'false,true,true');
 // Actual schedule optimum on a small enumerated fixture, rather than only score-vector assertions.
 e(`size=1;constraints=[];rolePriorities={};template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};runs=runs.slice(0,2);players=[{id:'alt',name:'Alt',max:2,available:[true,true],choices:[{c:'Hunter',spec:'Red',role:'DPS'},{c:'Champion',spec:'Red',role:'DPS'}]},{id:'early',name:'Early',max:2,available:[true,false],choices:[{c:'Burglar',spec:'Red',role:'DPS'}]}];let exactSchedules=[];for(let p of players)for(let c of choicesFor(p,runs[0]))for(let q of players)for(let d of choicesFor(q,runs[1])){let s=[{...runs[0],members:[{...p,...c}]},{...runs[1],members:[{...q,...d}]}];if(scheduleFeasible(s))exactSchedules.push(s)}`);
 for(const mode of Object.keys(orders)){
- e(`lockPriority='${mode}';var actual=assign(runs);var optimum=exactSchedules.map(scheduleObjective).sort((a,b)=>betterSchedule(a,b)?-1:betterSchedule(b,a)?1:0)[0];`);
- assert(e('!betterSchedule(optimum,scheduleObjective(actual))'),mode);
+ e(`lockPriority='${mode}';var actual=assign(runs);var optimum=exactSchedules.map(allocationObjective).sort((a,b)=>betterSchedule(a,b)?-1:betterSchedule(b,a)?1:0)[0];`);
+ assert(e('!betterSchedule(optimum,allocationObjective(actual))'),mode);
 }
 console.log('Passed: all mode priority pairs, required repeat fallback, perfect preferred comp, recommendation gates, neutral notes, deadlines, tentative remap and exhaustive small-schedule optimum.');
 

@@ -30,14 +30,38 @@ saved session JSON; raw signup JSON upload is no longer offered.
 
 New plans start from the Default raid template, one run, and Prioritize
 gearing. Tentative players participate normally, with independently checked
-confirmed substitutes. Gold borders mark repeated player/class assignments.
+confirmed substitutes. Silver borders mark soft-locked characters.
 
-Two selection modes (required composition is first in both):
+## Global allocation policy
 
-- **Prioritize gearing:** required comp → player preferences + locks →
-  preferred comp → constraints.
-- **Prioritize team quality:** required comp → preferred comp → constraints →
-  player preferences + locks.
+Primary replaces the former Kin marker. Older sessions migrate `kinsman` to
+`primary`; imports and browser recovery preserve the marker.
+
+All runs are allocated together. The global policy is:
+
+1. Hard requirements and individual eligibility.
+2. Primary players' first assignments, then other players' first assignments.
+3. Fewest locked assignment instances, then repeat severity and experience.
+4. Primary additional unlocked assignments before other additional assignments.
+5. Preferred staffing, role priority, soft constraints and finishing preferences.
+
+A Primary player may receive a fourth unlocked assignment before another player
+receives a second. First-run coverage still precedes extras. The finishing
+preference retains legacy `gearing` / `quality` session values: Player preferences
+puts class preferences ahead of experience balance; Team balance reverses those
+fine objectives. Neither changes hard validity, coverage, lock or Primary policy.
+
+`public/allocation.js` contains shared eligibility queries with exclusion reasons,
+role matching bounds, global constraint search and multi-assignment neighbourhood
+repair. The old allocator provides a quick starting candidate. Global allocation
+uses its own policy and validates before accepting completed drafts; fellowship
+placement and configured constraint checks participate in candidate evaluation.
+Tentative alternatives use the eligibility engine as well.
+
+Search runs under deadlines and node budgets. Valid means the configured checks
+pass, not that global optimality was proven. Partial results are explicitly marked
+when no valid candidate was found. Fellowship and cooldown checks retain their
+bounded existing evaluators; a failure does not prove no valid layout exists.
 
 Session import/export is on the Import tab. Browser recovery uses local
 storage only; move hosts by exporting and importing a session. Old mode names
@@ -52,6 +76,7 @@ Node.js for tests; Python and Bash for launcher checks:
 node tests/planner.test.cjs
 node tests/background.test.cjs
 node tests/audit.test.cjs
+node tests/allocation.test.cjs
 python3 -m py_compile server.py
 bash -n start.sh
 ```

@@ -1,0 +1,10 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const ctx=vm.createContext({console,Intl,setTimeout(){},localStorage:{getItem(){return null},setItem(){}},document:{getElementById(){return {style:{},value:'0',close(){}}}}});
+for(const f of ['app','role-priorities','fellowship','constraints','search','allocation'])vm.runInContext(fs.readFileSync('public/'+f+'.js','utf8'),ctx);
+const e=s=>vm.runInContext(s,ctx);
+e(`size=2;duration=1;constraints=[];rolePriorities={};template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};fellowshipSetup=emptyFellowshipSetup();fellowshipSetup.enabled=false;suggestSchedule=true;recommendationRunLimit=2;runs=[{id:1,source:0,time:18,label:'One'}];players=[{id:'early',name:'Early',max:2,available:[true,false],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]},{id:'both',name:'Both',max:2,available:[true,true],choices:[{c:'Champion',spec:'Red',role:'DPS'}]},{id:'late',name:'Late',max:2,available:[false,true],choices:[{c:'Burglar',spec:'Red',role:'DPS'}]}];let baseline=assign(runs);let proposal=findRecommendedConfiguration(baseline,2000);`);
+assert(e('proposal && proposal.uniquePlayers===3 && proposal.lockedPlayers===1'));
+assert(e('validateAllocation(proposal.teams).valid'));
+assert(e('betterRecommendedConfiguration({correctness:0,uniquePlayers:3,lockedPlayers:1,totalTeams:2,runCount:2},{correctness:0,uniquePlayers:2,lockedPlayers:0,totalTeams:1,runCount:1})'));
+assert(e('betterRecommendedConfiguration({correctness:0,uniquePlayers:3,lockedPlayers:0,totalTeams:2,runCount:2},{correctness:0,uniquePlayers:3,lockedPlayers:1,totalTeams:3,runCount:3})'));
+console.log('Passed: first-run coverage beats lock avoidance; equal coverage prefers fewer locks before extra teams.');
