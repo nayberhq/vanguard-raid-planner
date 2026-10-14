@@ -181,7 +181,7 @@ assert(evaluate('teamClassIcon(teams[0].members[0])').includes('classicon softlo
 evaluate(`players=[{id:'maybe',name:'Maybe',max:1,available:[true,true],choices:[{c:'Minstrel',spec:'Blue',role:'Healer'}]},{id:'backup',name:'Backup',max:1,available:[true,true],choices:[{c:'Rune-keeper',spec:'Blue',role:'Healer'}]}];runs=[{id:1,source:0,time:18,label:'Run 1'},{id:2,source:1,time:19,label:'Run 2'}];toggleRosterTentative('maybe');`);
 assert.equal(evaluate('isRosterTentative(players[0])'),true);
 assert.equal(evaluate('players[0].tentativeRuns.join(",")'),'true,true');
-assert(evaluate(`/type="checkbox" checked onchange="toggleRosterTentative\\('maybe'\\)"/.test(signupView())`),'Tentative checkbox reflects all-run tentative state');
+assert(evaluate(`/class="rosterflag tentative selected"[^>]*aria-pressed="true"[^>]*onclick="toggleRosterTentative\\('maybe'\\)"/.test(signupView())`),'Tentative icon reflects all-run tentative state');
 evaluate(`toggleRosterTentative('maybe');`);
 assert.equal(evaluate('!!players[0].tentativeRuns'),false);
 assert.equal(evaluate('isRosterTentative(players[0])'),false);
@@ -449,10 +449,11 @@ assert(evaluate('betterSchedule(scheduleObjective(kinExtra),scheduleObjective(gu
 assert.equal(evaluate('scheduleMetrics(leaveOtherOut).uncovered'),1);
 assert.equal(evaluate('scheduleMetrics(coverOther).uncovered'),0);
 assert(evaluate('betterSchedule(scheduleObjective(coverOther),scheduleObjective(leaveOtherOut))'),'covering an uncovered player beats giving kin a second run');
-assert(evaluate('signupView().includes("> Primary")'));
-assert(evaluate('signupView().includes("> Tentative")'));
+assert(evaluate('signupView().includes("title=\\"Primary\\"")'));
+assert(evaluate('signupView().includes("title=\\"Tentative\\"")'));
+assert(evaluate('signupView().includes("rostershrug")'));
 evaluate(`players[0].primary=true;delete players[0].kinsman;`);
-assert(evaluate(`/type="checkbox" checked onchange="togglePrimary\\('kin'\\)"/.test(signupView())`),'Primary checkbox reflects primary flag');
+assert(evaluate(`/class="rosterflag primary selected"[^>]*aria-pressed="true"[^>]*onclick="togglePrimary\\('kin'\\)"/.test(signupView())`),'Primary icon reflects primary flag');
 evaluate(`togglePrimary('other');`);
 assert.equal(evaluate('!!players.find(p=>p.id==="other").primary'),true);
 evaluate(`togglePrimary('other');`);
