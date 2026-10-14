@@ -2,7 +2,38 @@
 function scheduleFeasible(schedule){let characterSeen=new Set();if(noRepeatSearch)for(let t of schedule)for(let m of t.members){let key=characterKey(m);if(characterSeen.has(key))return false;characterSeen.add(key)}let occupied=new Map(),playerIndex=new Map(players.map(p=>[p.id,p]));for(let t of schedule){let ids=new Set();if(t.members.length>size)return false;if(typeof rolesWithinHardCaps==='function'&&!rolesWithinHardCaps(t.members))return false;for(let m of t.members){let p=playerIndex.get(m.id);if(!p||ids.has(m.id)||!availableForRun(p,t)||!choicesFor(p,t).some(c=>c.c===m.c&&c.spec===m.spec&&c.role===m.role&&(!m.charId||c.charId===m.charId)))return false;ids.add(m.id);let times=occupied.get(m.id)||[];if(times.some(time=>Math.abs(time-t.time)+1e-8<duration))return false;times.push(t.time);occupied.set(m.id,times)}}return true}
 function searchScheduleKey(schedule){return JSON.stringify(schedule.map(t=>[t.id,t.members.map(m=>[m.id,m.charId||'',m.c,m.spec,m.role]).sort()]))}
 function memberExperienceState(m){return typeof experienceState==='function'?experienceState(m,m?.c):'default'}
+// Continuous experience: Inexperienced=0, unmarked default=0.5, Experienced=1.
+const EXPERIENCE_RELAX_FLOOR=0.4;
+function experienceUnitValue(m){let state=memberExperienceState(m);return state==='experienced'?1:state==='inexperienced'?0:0.5}
 // Soft Exp/Inexp balance. Roles with 2+ seats are scored independently; singleton-role markers use the whole group.
+function experienceRoleGroups(members){
+ let seen=new Set(),byRole={};
+ for(let m of members||[]){
+  if(!m)continue;let id=String(m.id);if(seen.has(id))continue;seen.add(id);
+  let role=m.role||'DPS';(byRole[role]??=[]).push(m);
+ }
+ let groups=[],all=[],singletonMarked=false;
+ for(let role of Object.keys(byRole)){
+  let group=byRole[role];all.push(...group);
+  if(group.length>1){groups.push(group);continue}
+  let state=memberExperienceState(group[0]);
+  if(state==='inexperienced'||state==='experienced')singletonMarked=true;
+ }
+ if(singletonMarked&&all.length)groups.push(all);
+ return groups;
+}
+function experienceRoleAverages(members){
+ return experienceRoleGroups(members).map(group=>{
+  let average=group.reduce((n,m)=>n+experienceUnitValue(m),0)/group.length;
+  return {size:group.length,average};
+ });
+}
+function experienceMeetsRelaxFloor(members,floor=EXPERIENCE_RELAX_FLOOR){
+ return experienceRoleAverages(members).every(g=>g.average+1e-8>=floor);
+}
+function scheduleMeetsExperienceRelaxFloor(schedule,floor=EXPERIENCE_RELAX_FLOOR){
+ return !(schedule||[]).some(t=>!experienceMeetsRelaxFloor(t.members,floor));
+}
 function experienceMarkedCounts(members){
  let seen=new Set(),inexp=0,exp=0;
  for(let m of members||[]){
@@ -33,6 +64,7 @@ function experienceDeficitPenalty(members,capacity){
  if(singletonMarked)penalty+=experienceImbalancePenalty(members,cap);
  return penalty;
 }
+// When soft locks are present, prefer unlocked replacements that keep role experience averages at/above the relax floor.
 function experienceConcentration(groups,capacity){
  if(!Array.isArray(groups)||!groups.length)return 0;
  let total=0;

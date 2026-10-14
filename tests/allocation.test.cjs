@@ -36,4 +36,46 @@ assert(e('lockPriorityControls().includes("Primary")&&!lockPriorityControls().in
 e(`size=12;template={Tank:[1,1],Healer:[1,2],Debuffer:[1,2],Buffer:[1,1]};players=Array.from({length:30},(_,i)=>({id:'real'+i,name:'R'+i,primary:i<12,available:[true,true],choices:[opts[i%opts.length],opts[(i+7)%opts.length]]}));runs=[{id:1,source:0,time:18,label:'A'},{id:2,source:1,time:20,label:'B'}];quickScheduleCheck=true;let began=Date.now();let realistic=assign(runs,false);let elapsed=Date.now()-began;quickScheduleCheck=false;`);
 assert(e('elapsed<1500'),'quick global allocation remains bounded');
 assert(e('scheduleFeasible(realistic)'));
-console.log('Passed: absolute Primary extras, first-run coverage, scarce-role routing, eligibility reasons, exhaustive tiny optimum, migration and bounded realistic allocation.');
+// Experience unit scale and 40% relax floor: Inexp=0, default=0.5, Exp=1.
+e(`players=[{id:'i',name:'I',available:[true],inexperiencedClasses:['Hunter'],choices:[{c:'Hunter',spec:'Red',role:'DPS'}]},{id:'e',name:'E',available:[true],experiencedClasses:['Champion'],choices:[{c:'Champion',spec:'Red',role:'DPS'}]},...Array.from({length:5},(_,i)=>({id:'d'+i,name:'D'+i,available:[true],choices:[{c:'Burglar',spec:'Red',role:'DPS'}]}))];
+let inexp={...players[0],...players[0].choices[0]},exp={...players[1],...players[1].choices[0]},defs=players.slice(2).map(p=>({...p,...p.choices[0]}));`);
+assert.equal(e('experienceUnitValue(inexp)'),0);
+assert.equal(e('experienceUnitValue(exp)'),1);
+assert.equal(e('experienceUnitValue(defs[0])'),0.5);
+assert.equal(e('EXPERIENCE_RELAX_FLOOR'),0.4);
+assert.equal(e('experienceMeetsRelaxFloor([inexp,...defs])'),true,'Inexp+five defaults averages above 40%');
+assert.equal(e('experienceMeetsRelaxFloor([inexp,defs[0]])'),false,'Inexp+default pair averages 25%');
+assert.equal(e('experienceMeetsRelaxFloor([inexp,exp])'),true);
+// Soft-locked Primary Exp tank should yield to unlocked Secondary Inexp when the raid stays at/above 40%.
+e(`size=6;duration=1;constraints=[];rolePriorities={};template={Tank:[1,1],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};fellowshipSetup=emptyFellowshipSetup();fellowshipSetup.enabled=false;lockPriority='gearing';
+players=[
+ {id:'prim',name:'Prim',primary:true,available:[true,true],max:2,experiencedClasses:['Guardian'],choices:[{c:'Guardian',spec:'Blue',role:'Tank'}]},
+ {id:'sec',name:'Sec',available:[true,true],max:2,inexperiencedClasses:['Warden'],choices:[{c:'Warden',spec:'Blue',role:'Tank'}]},
+ ...Array.from({length:5},(_,i)=>({id:'a'+i,name:'A'+i,available:[true,false],max:1,choices:[{c:'Hunter',spec:'Red',role:'DPS'}]})),
+ ...Array.from({length:5},(_,i)=>({id:'b'+i,name:'B'+i,available:[false,true],max:1,choices:[{c:'Champion',spec:'Red',role:'DPS'}]}))
+];
+runs=[{id:1,source:0,time:18,label:'A'},{id:2,source:1,time:19,label:'B'}];
+ensureRosterCharacters();
+let seat=p=>({...p,...p.choices.find(c=>!c.flexible)||p.choices[0]});
+let softLocked=[{...runs[0],members:[seat(players[0]),...players.slice(2,7).map(seat)]},{...runs[1],members:[{...seat(players[0]),repeated:true},...players.slice(7,12).map(seat)]}];
+allocationIndex=compileAllocationModel(runs);
+let unlocked=relaxExperienceUnlock(softLocked,Date.now()+2000);`);
+assert.equal(e('lockedPlayerCount(softLocked)'),1);
+assert.equal(e('lockedPlayerCount(unlocked)'),0,'relaxed experience unlock removes the soft lock');
+assert(e('unlocked[1].members.some(m=>m.id==="sec")'),'Secondary Inexp fills the tank seat instead of Primary soft lock');
+assert(e('scheduleMeetsExperienceRelaxFloor(unlocked)'));
+// Below-floor unlocks are rejected: size-1 Inexp tank averages 0%.
+e(`size=1;template={Tank:[1,1],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};
+players=[
+ {id:'prim',name:'Prim',primary:true,available:[true,true],max:2,experiencedClasses:['Guardian'],choices:[{c:'Guardian',spec:'Blue',role:'Tank'}]},
+ {id:'sec',name:'Sec',available:[true,true],max:2,inexperiencedClasses:['Warden'],choices:[{c:'Warden',spec:'Blue',role:'Tank'}]}
+];
+runs=[{id:1,source:0,time:18,label:'A'},{id:2,source:1,time:19,label:'B'}];
+ensureRosterCharacters();
+seat=p=>({...p,...p.choices.find(c=>!c.flexible)||p.choices[0]});
+softLocked=[{...runs[0],members:[seat(players[0])]},{...runs[1],members:[{...seat(players[0]),repeated:true}]}];
+allocationIndex=compileAllocationModel(runs);
+let kept=relaxExperienceUnlock(softLocked,Date.now()+2000);`);
+assert.equal(e('lockedPlayerCount(kept)'),1,'soft lock retained when unlocked Inexp would fall below 40%');
+assert(e('kept[1].members[0].id==="prim"'));
+console.log('Passed: absolute Primary extras, first-run coverage, scarce-role routing, eligibility reasons, exhaustive tiny optimum, migration, experience relax unlock and bounded realistic allocation.');

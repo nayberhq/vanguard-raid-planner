@@ -179,6 +179,42 @@ function repairAllocationCoverage(schedule,deadline){
  }
  return current;
 }
+// Before keeping soft locks, try unlocked same-role replacements that keep experience averages at/above EXPERIENCE_RELAX_FLOOR.
+function relaxExperienceUnlock(schedule,deadline=Infinity){
+ if(!schedule?.length||lockedPlayerCount(schedule)<=0)return schedule;
+ let current=schedule.map(t=>({...t,members:t.members.slice()})),score=allocationObjective(current);
+ for(let pass=0;pass<6&&Date.now()<deadline&&lockedPlayerCount(current)>0;pass++){
+  let changed=false,seen=new Map();
+  for(let ti=0;ti<current.length&&Date.now()<deadline;ti++){
+   let t=current[ti];
+   for(let i=0;i<t.members.length&&Date.now()<deadline;i++){
+    let locked=t.members[i],key=characterKey(locked),prior=seen.get(key)||0;
+    seen.set(key,prior+1);
+    if(!prior)continue;
+    let remaining=t.members.filter((_,j)=>j!==i),context=current.map((r,j)=>j===ti?{...r,members:remaining}:r);
+    let proposals=[];
+    for(let candidate of queryEligibility({run:t,schedule:context,allowLocks:false,role:locked.role}).members){
+     if(Date.now()>=deadline)break;
+     let members=[...remaining,candidate],next=current.map((r,j)=>j===ti?{...r,members}:r);
+     if(!scheduleFeasible(next)||hasInexperiencedSoftLock(next))continue;
+     if(typeof scheduleMeetsExperienceRelaxFloor==='function'&&!scheduleMeetsExperienceRelaxFloor(next))continue;
+     if(scheduleHardDeficit(next)>1e-8)continue;
+     proposals.push({next,score:allocationObjective(next),locks:lockedPlayerCount(next),secondaryLocks:secondaryLockedAssignments(next),primary:isPrimary(candidate)?1:0});
+    }
+    proposals.sort((a,b)=>a.locks-b.locks||a.secondaryLocks-b.secondaryLocks||a.primary-b.primary||(betterSchedule(a.score,b.score)?-1:betterSchedule(b.score,a.score)?1:0));
+    for(let proposal of proposals.slice(0,12)){
+     if(betterSchedule(proposal.score,score)){current=proposal.next;score=proposal.score;changed=true;break}
+    }
+    if(changed)break;
+   }
+   if(changed)break;
+  }
+  if(!changed)break;
+  current=refreshScheduleDetails(current.map(t=>({...t,members:t.members.slice()})));
+  score=allocationObjective(current);
+ }
+ return current;
+}
 function assign(schedule,refine=true){
  ensureRosterCharacters();syncUnifiedRoles();
  const saved={confirmedOnly,noRepeatSearch,freshCharacterCounts,selectionDeadline,constraintContext,allocationIndex};
@@ -198,11 +234,17 @@ function assign(schedule,refine=true){
   if(typeof planningProgress==='function')planningProgress('Drafting Primary first seats, other first seats, and unlocked additional runs…');
   const unlockedEnd=Math.min(deadline,Date.now()+(quickScheduleCheck?80:1800));
   searchAllocation(empty,{allowLocks:false,deadline:unlockedEnd,nodeLimit:quickScheduleCheck?300:5000,onSolution:consider});
+  if(lockedPlayerCount(best)>0){
+   if(typeof planningProgress==='function')planningProgress('Relaxing experience to 40% averages to avoid soft locks…');
+   consider(relaxExperienceUnlock(best,Math.min(deadline,Date.now()+(quickScheduleCheck?80:700))));
+  }
   const valid=validateAllocation(best).valid;
   if(!valid||lockedPlayerCount(best)>0){
    searchAllocation(empty,{allowLocks:true,deadline:Math.min(deadline,Date.now()+(quickScheduleCheck?60:900)),nodeLimit:quickScheduleCheck?300:5000,onSolution:consider});
+   if(lockedPlayerCount(best)>0)consider(relaxExperienceUnlock(best,Math.min(deadline,Date.now()+(quickScheduleCheck?80:700))));
   }
   consider(repairAllocationCoverage(best,Math.min(deadline,Date.now()+(quickScheduleCheck?100:900))));
+  if(lockedPlayerCount(best)>0)consider(relaxExperienceUnlock(best,Math.min(deadline,Date.now()+(quickScheduleCheck?60:500))));
   // Large-neighbourhood repair reopens several coupled assignments at once.
   // Primary/coverage and scarce-role seats can move across the entire evening.
   if(refine&&Date.now()<deadline){
@@ -215,6 +257,7 @@ function assign(schedule,refine=true){
     for(const t of seed)t.members=t.members.filter(m=>!removed.has(m.id));
     searchAllocation(seed,{allowLocks:lockedPlayerCount(best)>0,deadline:Math.min(deadline,Date.now()+450),nodeLimit:3000,onSolution:consider});
    }
+   if(lockedPlayerCount(best)>0)consider(relaxExperienceUnlock(best,Math.min(deadline,Date.now()+(quickScheduleCheck?60:500))));
   }
   best=annotateConstraints(refreshScheduleDetails(best));
   const check=validateAllocation(best);
