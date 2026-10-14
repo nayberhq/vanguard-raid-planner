@@ -178,6 +178,13 @@ evaluate(`teams.push({id:2,source:0,time:18,label:'Parallel',members:[{...player
 assert.equal(evaluate('teams[0].alternatives.maybe.choices.length'),0);
 evaluate(`teams=[{...runs[0],members:[{...players[0],...players[0].choices[0]}]},{id:2,source:0,time:20,members:[{...players[0],...players[0].choices[0]}]}]`);
 assert(evaluate('teamClassIcon(teams[0].members[0])').includes('classicon softlocked'));
+evaluate(`players=[{id:'maybe',name:'Maybe',max:1,available:[true,true],choices:[{c:'Minstrel',spec:'Blue',role:'Healer'}]},{id:'backup',name:'Backup',max:1,available:[true,true],choices:[{c:'Rune-keeper',spec:'Blue',role:'Healer'}]}];runs=[{id:1,source:0,time:18,label:'Run 1'},{id:2,source:1,time:19,label:'Run 2'}];toggleRosterTentative('maybe');`);
+assert.equal(evaluate('isRosterTentative(players[0])'),true);
+assert.equal(evaluate('players[0].tentativeRuns.join(",")'),'true,true');
+assert(evaluate(`/type="checkbox" checked onchange="toggleRosterTentative\\('maybe'\\)"/.test(signupView())`),'Tentative checkbox reflects all-run tentative state');
+evaluate(`toggleRosterTentative('maybe');`);
+assert.equal(evaluate('!!players[0].tentativeRuns'),false);
+assert.equal(evaluate('isRosterTentative(players[0])'),false);
 console.log('Passed: roster tentative badges, confirmed role-compatible backups, overlap exclusion and gold team icons for repeated characters.');
 // Tentative status carries no allocation penalty; alternatives remain confirmed.
 evaluate(`size=1;fellowshipSetup=emptyFellowshipSetup();constraints=[];template={Tank:[0,0],Healer:[1,1],Debuffer:[0,0],Buffer:[0,0]};rolePriorities={Healer:{'Minstrel|Blue':0}};runs=[{id:1,source:0,time:18,label:'One'}];players=[{id:'tentativeNormal',name:'Tentative',available:[true],max:1,tentativeRuns:[true],choices:[{c:'Minstrel',spec:'Blue',role:'Healer'}]},{id:'confirmedAlt',name:'Confirmed',available:[true],max:1,choices:[{c:'Rune-keeper',spec:'Blue',role:'Healer'}]}];teams=assign(runs);buildTentativeAlternatives(teams);`);
@@ -443,6 +450,13 @@ assert.equal(evaluate('scheduleMetrics(leaveOtherOut).uncovered'),1);
 assert.equal(evaluate('scheduleMetrics(coverOther).uncovered'),0);
 assert(evaluate('betterSchedule(scheduleObjective(coverOther),scheduleObjective(leaveOtherOut))'),'covering an uncovered player beats giving kin a second run');
 assert(evaluate('signupView().includes("> Primary")'));
+assert(evaluate('signupView().includes("> Tentative")'));
+evaluate(`players[0].primary=true;delete players[0].kinsman;`);
+assert(evaluate(`/type="checkbox" checked onchange="togglePrimary\\('kin'\\)"/.test(signupView())`),'Primary checkbox reflects primary flag');
+evaluate(`togglePrimary('other');`);
+assert.equal(evaluate('!!players.find(p=>p.id==="other").primary'),true);
+evaluate(`togglePrimary('other');`);
+assert.equal(evaluate('!!players.find(p=>p.id==="other").primary'),false);
 evaluate(`hasGenerated=true;teams=kinExtra;dirty=false;`);
 assert(evaluate('teamView().includes("kinsmanbadge")'));
 evaluate(`toggleKinsman('guest');size=6;hasGenerated=false;teams=[];let packedKin=compactSessionSnapshot();`);
