@@ -31,7 +31,7 @@ assert(e('!betterSchedule(optimum,allocationObjective(actual))'));
 // Old sessions migrate without changing the flag's meaning.
 e(`let old={id:'legacy',kinsman:true};migratePrimary(old);`);
 assert(e('old.primary===true&&!Object.hasOwn(old,"kinsman")'));
-assert(e('lockPriorityControls().includes("Primary")&&!lockPriorityControls().includes("Kin")'));
+assert(e('lockPriorityControls().includes("Perfect comp")&&!lockPriorityControls().includes("Kin")'));
 // Worker budgets remain bounded on a realistic multi-choice roster.
 e(`size=12;template={Tank:[1,1],Healer:[1,2],Debuffer:[1,2],Buffer:[1,1]};players=Array.from({length:30},(_,i)=>({id:'real'+i,name:'R'+i,primary:i<12,available:[true,true],choices:[opts[i%opts.length],opts[(i+7)%opts.length]]}));runs=[{id:1,source:0,time:18,label:'A'},{id:2,source:1,time:20,label:'B'}];quickScheduleCheck=true;let began=Date.now();let realistic=assign(runs,false);let elapsed=Date.now()-began;quickScheduleCheck=false;`);
 assert(e('elapsed<1500'),'quick global allocation remains bounded');

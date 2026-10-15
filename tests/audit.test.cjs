@@ -59,7 +59,7 @@ for(const [legacy,expected] of [['unlocked','gearing'],['comp','gearing'],['perf
  assert.equal(e('lockPriority'),expected);assert.equal(e('compactSessionSnapshot().settings.lockPriority'),expected);
  e(`delete globalThis.legacy`);
 }
-assert.equal((e('lockPriorityControls()').match(/<option /g)||[]).length,2);
+assert.equal((e('lockPriorityControls()').match(/class="modeicon /g)||[]).length,2);
 assert(!e('lockPriorityControls().includes("Prioritize locks")'));
 console.log('Passed: legacy session modes migrate; exports use canonical modes; exactly two UI choices.');
 
