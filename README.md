@@ -88,3 +88,15 @@ Run workflow on `main`.
 
 All app assets (including class icons) are local. No server state or external
 hosting integration is required. Class artwork is credited to LOTRO Wiki.
+
+## Grima signup links
+
+Grima opens `#grima=<base64url(zlib(UTF-8 JSON))>` snapshots directly in the
+roster. The Import tab also accepts these URLs and can create a compressed link
+from the current plan. Imports validate before changing the plan, preserve the
+previous plan under **Restore plan before Grima import**, and clear the snapshot
+from the address bar. Links contain signup data; they are snapshots, not live sync.
+Tokens are limited to 20,000 characters and decompressed JSON to 2 MB. Grima uses
+a smaller Discord message limit and attaches Session JSON for oversized rosters.
+Event identity and fellowship groups survive session export; **Return plan to
+Grima** provides a compressed paste code after team generation.
