@@ -1,3 +1,23 @@
+// Immutable GS1 class/spec order; roles are reconstructed, never guessed.
+const grimaSignupChoices=[{"c":"Beorning","spec":"Blue","role":"Tank"},{"c":"Beorning","spec":"Yellow","role":"Healer"},{"c":"Beorning","spec":"Red","role":"DPS"},{"c":"Brawler","spec":"Blue","role":"Tank"},{"c":"Brawler","spec":"Red","role":"DPS"},{"c":"Burglar","spec":"Yellow","role":"Debuffer"},{"c":"Burglar","spec":"Red","role":"DPS"},{"c":"Burglar","spec":"Blue","role":"DPS"},{"c":"Captain","spec":"Yellow","role":"Tank"},{"c":"Captain","spec":"Blue","role":"Healer"},{"c":"Captain","spec":"Red","role":"Buffer"},{"c":"Champion","spec":"Blue","role":"Tank"},{"c":"Champion","spec":"Red","role":"DPS"},{"c":"Champion","spec":"Yellow","role":"DPS"},{"c":"Guardian","spec":"Blue","role":"Tank"},{"c":"Guardian","spec":"Red","role":"DPS"},{"c":"Hunter","spec":"Blue","role":"DPS"},{"c":"Hunter","spec":"Red","role":"DPS"},{"c":"Hunter","spec":"Yellow","role":"Debuffer"},{"c":"Lore-master","spec":"Blue","role":"Buffer"},{"c":"Lore-master","spec":"Red","role":"DPS"},{"c":"Lore-master","spec":"Yellow","role":"Debuffer"},{"c":"Mariner","spec":"Blue","role":"Buffer"},{"c":"Mariner","spec":"Yellow","role":"Debuffer"},{"c":"Mariner","spec":"Red","role":"DPS"},{"c":"Minstrel","spec":"Blue","role":"Healer"},{"c":"Minstrel","spec":"Red","role":"DPS"},{"c":"Rune-keeper","spec":"Blue","role":"Healer"},{"c":"Rune-keeper","spec":"Red","role":"DPS"},{"c":"Rune-keeper","spec":"Yellow","role":"DPS"},{"c":"Warden","spec":"Blue","role":"Tank"},{"c":"Warden","spec":"Red","role":"DPS"}];
+function decodeCompactGrima(bytes){
+ let offset=3;const fail=()=>{throw Error('Invalid compact Grima signup snapshot.')};
+ if(bytes[2]!==49)throw Error('Unsupported Grima signup version.');
+ const byte=()=>{if(offset>=bytes.length)fail();return bytes[offset++]};
+ const uint=()=>{let n=0n;for(let i=0;i<8;i++){const b=byte();n|=BigInt(b&127)<<BigInt(i*7);if(!(b&128)){if(n>BigInt(Number.MAX_SAFE_INTEGER))fail();return Number(n)}}fail()};
+ const id=()=>{let n=0n;for(let i=0;i<8;i++)n|=BigInt(byte())<<BigInt(i*8);return n.toString()};
+ const string=()=>{const n=uint();if(n>bytes.length-offset)fail();const s=new TextDecoder('utf-8',{fatal:true}).decode(bytes.subarray(offset,offset+n));offset+=n;return s};
+ const grimaEventId=id(),size=uint(),seconds=uint(),label=string(),count=uint();
+ if(count>2000)fail();const players=[];
+ for(let i=0;i<count;i++){
+  const playerId=id(),name=string(),mask=BigInt(uint()),flags=byte();
+  if(flags>1||mask>>BigInt(grimaSignupChoices.length))fail();
+  const choices=grimaSignupChoices.filter((c,j)=>(mask&(1n<<BigInt(j)))!==0n).map(c=>({...c}));
+  players.push({id:playerId,name,choices,available:[true],max:1,primary:flags===1});
+ }
+ if(offset!==bytes.length)fail();
+ return {format:'vanguard-raid-planner-session',version:6,grimaEventId,players,runs:[{id:1,time:0,label,source:0}],template:{Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]},settings:{size,duration:seconds/3600,fair:true,suggestSchedule:false,lockPriority:'gearing',recommendationRunLimit:1},teams:[],recommendations:[],hasGenerated:false,dirty:false,message:''};
+}
 // Grima snapshots are carried in the fragment, not sent to the Pages host.
 async function decodeGrimaSnapshot(token){
  if(!/^[A-Za-z0-9_-]+$/.test(token)||token.length>20000)throw Error('Invalid Grima link.');
@@ -7,7 +27,7 @@ async function decodeGrimaSnapshot(token){
  let chunks=[],length=0;
  try{while(true){let {done,value}=await reader.read();if(done)break;length+=value.length;if(length>2000000)throw Error('Grima snapshot is too large.');chunks.push(value)}}finally{await reader.cancel()}
  let all=new Uint8Array(length),offset=0;for(let chunk of chunks){all.set(chunk,offset);offset+=chunk.length}
- let data=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(all));validateSession(data);return data;
+ let data=all[0]===71&&all[1]===83?decodeCompactGrima(all):JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(all));validateSession(data);return data;
 }
 const grimaBackupKey='vanguard-before-grima-import';
 async function encodeGrimaSnapshot(data){

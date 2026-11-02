@@ -100,3 +100,22 @@ Tokens are limited to 20,000 characters and decompressed JSON to 2 MB. Grima use
 a smaller Discord message limit and attaches Session JSON for oversized rosters.
 Event identity and fellowship groups survive session export; **Return plan to
 Grima** provides a compressed paste code after team generation.
+
+### Compact signup links (GS1)
+
+Fresh Grima exports use a versioned binary payload, compressed with zlib and
+encoded as base64url in `#grima=`. IDs use unsigned 64-bit little-endian bytes;
+UTF-8 strings have unsigned LEB128 byte lengths. The payload is `GS1`, event ID,
+raid size (LEB128), duration in seconds (LEB128), title, player count (LEB128),
+then each player's ID, clean name, class/spec mask (LEB128), and a priority byte
+(0 or 1). Bit positions are frozen in SIGNUP_CHOICES / grimaSignupChoices; changes
+require a new protocol version. Roles and fresh-session defaults are reconstructed.
+Names never include custom Discord emoji; network kin markers become priority.
+
+The decoder retains support for older compressed JSON URLs. Saved plans with
+custom settings continue using full JSON; compact encoding is only for fresh
+signups. Tests exercise 200 signups with every supported class/spec. Random
+12-character names produced 5,488-character links; 32-character names produced
+9,707 characters. Browser decoder limit: 20,000 token characters, 2 MB inflated.
+Discord links retain their smaller transport limits; oversized rosters receive
+Session JSON plus planner-link.txt containing the complete URL when it fits.
