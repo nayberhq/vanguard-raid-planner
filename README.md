@@ -119,3 +119,16 @@ signups. Tests exercise 200 signups with every supported class/spec. Random
 9,707 characters. Browser decoder limit: 20,000 token characters, 2 MB inflated.
 Discord links retain their smaller transport limits; oversized rosters receive
 Session JSON plus planner-link.txt containing the complete URL when it fits.
+
+### Manual roster editing
+
+In Teams, click an assigned player's name to replace them, or **Assign player**
+to fill an empty spot. Search by name, class, or role. Players already in that
+run (including parallel groups) are hidden. Characters assigned to other runs,
+overlapping availability, and unselected specs are disabled with an explanation.
+Other unlocked characters remain selectable.
+
+The **×** next to a team member removes their signup from this planner and all
+planned runs after confirmation. It does not cancel their Discord signup.
+**Undo roster edit** restores removals and replacements. Session export and
+browser recovery preserve the edited plan. Regenerate rebuilds assignments.

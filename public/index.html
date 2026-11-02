@@ -32,4 +32,16 @@ body{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
 .footerstatus{font-size:12px;color:var(--muted);min-width:0}.footerstatus.pending{color:var(--gold)}
 .plannerfooter .lastaction{padding:0;margin:0;font-size:12px;max-width:240px}.plannerfooter button{white-space:nowrap}
 @media(max-width:600px){.plannerfooter{gap:8px;padding-left:10px;padding-right:10px}.plannerfooter .lastaction{display:none}.footerstatus{max-width:70px;font-size:11px}}
-</style></head><body><header><div><div class="eyebrow">Vanguard / Sting</div><h1>Raid Planner</h1></div></header><nav id="nav"></nav><main id="main"></main><div id="toast" role="status"></div><dialog id="discordexport" aria-labelledby="discordexporttitle"><div id="discordexportcontent"></div></dialog><script src="app.js?v=kin-1"></script><script src="role-priorities.js"></script><script src="fellowship.js"></script><script src="constraints.js"></script><script src="builtin-templates.js"></script><script src="search.js"></script><script src="allocation.js"></script><script src="background.js"></script><script src="session-recovery.js"></script><script src="grima-import.js?v=gs1"></script></body></html>
+
+.fellowship-group .rosterrow{grid-template-columns:44px minmax(0,1fr) auto auto}
+.fellowship-group .rosterrow>div{min-width:0;overflow-wrap:anywhere}
+#assignmenteditor{width:min(720px,94vw);max-height:88vh;box-sizing:border-box;padding:24px;background:var(--panel);color:inherit;border:1px solid var(--line);border-radius:12px}
+#assignmenteditor::backdrop{background:#0009}
+#assignmentoptions{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:8px;max-height:50vh;overflow:auto}
+.assignmentoption{display:flex;align-items:center;gap:10px;text-align:left;padding:10px}
+.assignmentoption small{display:block}
+.assignmentoption:disabled{filter:grayscale(1);opacity:.5}
+.assignmentname{background:transparent;border:0;padding:3px 0;text-align:left;color:inherit}
+.assignmentname:hover{color:var(--gold)}
+.assignmentname:focus-visible{outline:2px solid var(--gold)}
+</style></head><body><header><div><div class="eyebrow">Vanguard / Sting</div><h1>Raid Planner</h1></div></header><nav id="nav"></nav><main id="main"></main><div id="toast" role="status"></div><dialog id="discordexport" aria-labelledby="discordexporttitle"><div id="discordexportcontent"></div></dialog><script src="app.js?v=manual-1"></script><script src="role-priorities.js"></script><script src="fellowship.js"></script><script src="constraints.js"></script><script src="builtin-templates.js"></script><script src="search.js"></script><script src="allocation.js"></script><script src="background.js"></script><script src="manual-roster.js"></script><script src="session-recovery.js"></script><script src="grima-import.js?v=gs1"></script></body></html>

@@ -51,6 +51,7 @@ jobs:
           node --check public/allocation.js
           node --check public/background.js
           node --check public/planner-worker.js
+          node --check public/manual-roster.js
           node --check public/session-recovery.js
           node --check public/builtin-templates.js
           for test in tests/*.test.cjs; do

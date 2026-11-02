@@ -1,0 +1,40 @@
+const fs=require('fs'),vm=require('vm'),assert=require('assert'),els={};
+const ctx=vm.createContext({console,Intl,setTimeout(){},localStorage:{getItem(){return null},setItem(){}},document:{getElementById(id){return els[id]??={style:{},value:'',innerHTML:'',close(){},showModal(){},focus(){}}}}});
+for(const f of ['app','role-priorities','fellowship','constraints','search','allocation','manual-roster','session-recovery'])vm.runInContext(fs.readFileSync('public/'+f+'.js','utf8'),ctx);
+const e=s=>vm.runInContext(s,ctx);
+e(`size=3;duration=1;constraints=[];fellowshipSetup=emptyFellowshipSetup();fellowshipSetup.enabled=false;rolePriorities={};template={Tank:[0,0],Healer:[0,0],Debuffer:[0,0],Buffer:[0,0]};
+players=['current','fresh','locked','parallel','overlap','absent','flex'].map(id=>({id,name:id,available:[true,true,true],max:3,choices:[{c:'Hunter',spec:'Red',role:'DPS'}]}));
+players.find(p=>p.id==='locked').choices.push({c:'Champion',spec:'Red',role:'DPS'});
+players.find(p=>p.id==='absent').available[0]=false;players.find(p=>p.id==='flex').choices[0].flexible=true;
+ensureRosterCharacters();function member(id){let p=players.find(p=>p.id===id);return {...p,...p.choices[0]}}
+runs=[{id:1,source:0,time:18,label:'First'},{id:2,source:1,time:20,label:'Later'},{id:3,source:0,time:18,label:'Parallel'},{id:4,source:2,time:18.5,label:'Overlap'}];
+teams=runs.map(r=>({...r,members:[member(({1:'current',2:'locked',3:'parallel',4:'overlap'})[r.id])]}));
+hasGenerated=true;dirty=false;refreshScheduleDetails(teams);annotateConstraints(teams);`);
+assert(e("replacementOptions(1,'current').every(o=>!['current','parallel'].includes(o.member.id))"));
+for(const [id,c,reason] of [['locked','Hunter','Character locked'],['locked','Champion',''],['overlap','Hunter','overlapping'],['absent','Hunter','Unavailable'],['flex','Hunter','Spec not selected']]){
+ const actual=e(`replacementOptions(1,'current').find(o=>o.member.id==='${id}'&&o.member.c==='${c}').reason`);
+ assert(reason?actual.includes(reason):actual==='');
+}
+e("players.find(p=>p.id==='fresh').name='<Fresh>';openAssignmentEditor(1,'current')");
+assert(els.assignmentoptions.innerHTML.includes('&lt;Fresh&gt;')&&els.assignmentoptions.innerHTML.includes('disabled'));
+e("filterAssignmentOptions('champion')");assert(!els.assignmentoptions.innerHTML.includes('&lt;Fresh&gt;'));
+e("let freshIndex=assignmentEditor.options.findIndex(o=>o.member.id==='fresh');players.find(p=>p.id==='fresh').available[0]=false");
+assert.equal(e('chooseAssignment(freshIndex)'),false);assert.equal(e('teams[0].members[0].id'),'current');
+e("players.find(p=>p.id==='fresh').available[0]=true");assert.equal(e('chooseAssignment(freshIndex)'),true);
+assert.equal(e('teams[0].members[0].id'),'fresh');
+assert(e("teams[0].fellowships.flat().some(m=>m.id==='fresh')&&players.some(p=>p.id==='current')"));
+assert.equal(e('dirty'),false);assert(e("JSON.stringify(compactSessionSnapshot()).includes('fresh')"));
+e('undoRosterEdit()');assert.equal(e('teams[0].members[0].id'),'current');
+e("openAssignmentEditor(1);freshIndex=assignmentEditor.options.findIndex(o=>o.member.id==='fresh');chooseAssignment(freshIndex)");
+assert.equal(e('teams[0].members.length'),2);
+e("openAssignmentEditor(1);let altIndex=assignmentEditor.options.findIndex(o=>o.member.id==='locked'&&o.member.c==='Champion');chooseAssignment(altIndex)");
+assert.equal(e('teams[0].members.length'),3);assert.equal(e('replacementOptions(1).length'),0);
+e("removePlayer('locked')");
+assert(e("!players.some(p=>p.id==='locked')&&teams.every(t=>t.members.every(m=>m.id!=='locked'))"));
+assert(e("teams.every(t=>t.fellowships.flat().every(m=>m.id!=='locked'))"));
+assert(e("!JSON.stringify(sessionSnapshot().teams).includes('locked')"));
+e('undoRosterEdit()');
+assert(e("players.some(p=>p.id==='locked')&&teams.filter(t=>t.members.some(m=>m.id==='locked')).length===2"));
+assert(e("fellowshipRosterHTML(teams[0]).includes('openAssignmentEditor')&&fellowshipRosterHTML(teams[0]).includes('Unsign up')"));
+assert(fs.readFileSync('public/index.html','utf8').includes('src="manual-roster.js"'));
+console.log('Passed manual roster: locks, alternatives, availability, search, stale clicks, vacancies, removal, undo and saved plan.');
