@@ -10,7 +10,7 @@ ensureRosterCharacters();function member(id){let p=players.find(p=>p.id===id);re
 runs=[{id:1,source:0,time:18,label:'First'},{id:2,source:1,time:20,label:'Later'},{id:3,source:0,time:18,label:'Parallel'},{id:4,source:2,time:18.5,label:'Overlap'}];
 teams=runs.map(r=>({...r,members:[member(({1:'current',2:'locked',3:'parallel',4:'overlap'})[r.id])]}));
 hasGenerated=true;dirty=false;refreshScheduleDetails(teams);annotateConstraints(teams);`);
-assert(e("replacementOptions(1,'current').every(o=>!['current','parallel'].includes(o.member.id))"));
+assert(e("replacementOptions(1,'current').every(o=>o.member.id!=='parallel')"));
 for(const [id,c,reason] of [['locked','Hunter','Character locked'],['locked','Champion',''],['overlap','Hunter','overlapping'],['absent','Hunter','Unavailable'],['flex','Hunter','Spec not selected']]){
  const actual=e(`replacementOptions(1,'current').find(o=>o.member.id==='${id}'&&o.member.c==='${c}').reason`);
  assert(reason?actual.includes(reason):actual==='');
@@ -35,6 +35,30 @@ assert(e("teams.every(t=>t.fellowships.flat().every(m=>m.id!=='locked'))"));
 assert(e("!JSON.stringify(sessionSnapshot().teams).includes('locked')"));
 e('undoRosterEdit()');
 assert(e("players.some(p=>p.id==='locked')&&teams.filter(t=>t.members.some(m=>m.id==='locked')).length===2"));
-assert(e("fellowshipRosterHTML(teams[0]).includes('openAssignmentEditor')&&fellowshipRosterHTML(teams[0]).includes('Unsign up')"));
-assert(fs.readFileSync('public/index.html','utf8').includes('src="manual-roster.js"'));
+assert(e("fellowshipRosterHTML(teams[0]).includes('openAssignmentEditor')&&fellowshipRosterHTML(teams[0]).includes('removeTeamMember')"));
+assert(fs.readFileSync('public/index.html','utf8').includes('src="manual-roster.js?v=team-edit-2"'));
 console.log('Passed manual roster: locks, alternatives, availability, search, stale clicks, vacancies, removal, undo and saved plan.');
+
+// Current player can change class/role without duplicating their seat.
+e("players.find(p=>p.id==='current').choices.push({c:'Warden',spec:'Blue',role:'Tank'});ensureRosterCharacters();openAssignmentEditor(1,'current')");
+assert.equal(e("assignmentEditor.options[0].member.id"),'current');
+e("let selfIndex=assignmentEditor.options.findIndex(o=>o.member.id==='current'&&o.member.c==='Warden');chooseAssignment(selfIndex)");
+assert(e("teams[0].members.some(m=>m.id==='current'&&m.c==='Warden'&&m.role==='Tank')"));
+assert.equal(e("teams[0].members.filter(m=>m.id==='current').length"),1);
+e("undoRosterEdit()");
+assert(e("teams[0].members.some(m=>m.id==='current'&&m.c==='Hunter')"));
+// Team removal is immediate and preserves signup plus assignment in another run.
+e("let signupBefore=JSON.stringify(players);let otherBefore=JSON.stringify(teams[1].members);removeTeamMember(1,'locked')");
+assert.equal(e("JSON.stringify(players)"),e("signupBefore"));
+assert.equal(e("JSON.stringify(teams[1].members)"),e("otherBefore"));
+assert(e("!teams[0].members.some(m=>m.id==='locked')"));
+assert(e("!teams[0].fellowships.flat().some(m=>m.id==='locked')"));
+assert(e("replacementOptions(1).some(o=>o.member.id==='locked'&&o.member.c==='Champion'&&!o.reason)"));
+assert(!e("fellowshipRosterHTML(teams[0]).includes('requestRemoval')"));
+assert.equal(e("removeTeamMember(1,'missing')"),false);
+e("undoRosterEdit()");
+assert(e("teams[0].members.some(m=>m.id==='locked')"));
+// Move to a parallel group after freeing the old seat.
+e("removeTeamMember(1,'fresh');openAssignmentEditor(3);let moveIndex=assignmentEditor.options.findIndex(o=>o.member.id==='fresh');chooseAssignment(moveIndex)");
+assert(e("teams[2].members.some(m=>m.id==='fresh')&&!teams[0].members.some(m=>m.id==='fresh')&&players.some(p=>p.id==='fresh')"));
+console.log('Passed: current-player class/role edits, immediate team-only removal, move to parallel group, signup preservation and undo.');

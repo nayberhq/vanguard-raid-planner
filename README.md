@@ -122,13 +122,14 @@ Session JSON plus planner-link.txt containing the complete URL when it fits.
 
 ### Manual roster editing
 
-In Teams, click an assigned player's name to replace them, or **Assign player**
-to fill an empty spot. Search by name, class, or role. Players already in that
-run (including parallel groups) are hidden. Characters assigned to other runs,
+In Teams, click an assigned player's name to change their class/spec or replace them, or **Assign player**
+to fill an empty spot. Search by name, class, or role. Other players already in that
+run (including parallel groups) are hidden; the edited player’s choices appear first. Characters assigned to other runs,
 overlapping availability, and unselected specs are disabled with an explanation.
 Other unlocked characters remain selectable.
 
-The **×** next to a team member removes their signup from this planner and all
-planned runs after confirmation. It does not cancel their Discord signup.
+The **×** next to a team member immediately removes them from that team only,
+without confirmation. Their signup and other teams are preserved, so they can
+be assigned to another team. Full signup removal remains in the Roster tab.
 **Undo roster edit** restores removals and replacements. Session export and
 browser recovery preserve the edited plan. Regenerate rebuilds assignments.

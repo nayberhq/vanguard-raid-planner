@@ -7,7 +7,7 @@ function replacementOptions(runId,memberId=null){
  const context=teams.map(t=>t.id===raid.id?{...t,members:t.members.filter(m=>m.id!==memberId)}:t);
  const result=[];
  for(const p of players){
-  if(occupied.has(p.id))continue;
+  if(occupied.has(p.id)&&p.id!==memberId)continue;
   const selected=choicesFor(p,raid);
   for(const c of p.choices){
    let reason='';
@@ -19,7 +19,7 @@ function replacementOptions(runId,memberId=null){
    result.push({member:candidate,reason});
   }
  }
- return result.sort((a,b)=>a.member.name.localeCompare(b.member.name)||roleOrder.indexOf(a.member.role)-roleOrder.indexOf(b.member.role));
+ return result.sort((a,b)=>(b.member.id===memberId)-(a.member.id===memberId)||a.member.name.localeCompare(b.member.name)||roleOrder.indexOf(a.member.role)-roleOrder.indexOf(b.member.role));
 }
 function openAssignmentEditor(runId,memberId=null){
  const raid=teams.find(t=>t.id===runId);if(!raid)return;
@@ -27,7 +27,7 @@ function openAssignmentEditor(runId,memberId=null){
  let dialog=document.getElementById('assignmenteditor');
  if(!dialog){dialog=document.createElement('dialog');dialog.id='assignmenteditor';dialog.setAttribute('aria-labelledby','assignmenteditortitle');dialog.addEventListener('close',()=>{assignmentEditor=null});document.body.append(dialog)}
  const current=raid.members.find(m=>m.id===memberId);
- dialog.innerHTML=`<div class="toolbar"><h2 id="assignmenteditortitle">${current?'Replace '+esc(current.name):'Fill empty spot'}</h2><button type="button" aria-label="Close assignment editor" onclick="document.getElementById('assignmenteditor').close()">×</button></div><p>${esc(raid.label)} · Choose a player and class/spec. Players already in this run are hidden. Locked choices are disabled.</p><label class="field"><span>Find a player, class or role</span><input id="assignmentsearch" type="search" oninput="filterAssignmentOptions(this.value)"></label><div id="assignmentoptions"></div><p class="muted">Changes are saved in this plan. Regenerating builds a new assignment.</p>`;
+ dialog.innerHTML=`<div class="toolbar"><h2 id="assignmenteditortitle">${current?'Edit '+esc(current.name):'Fill empty spot'}</h2><button type="button" aria-label="Close assignment editor" onclick="document.getElementById('assignmenteditor').close()">×</button></div><p>${esc(raid.label)} · Choose a player and class/spec. Change the current player’s class/spec or choose a replacement. Other players already in this run are hidden. Locked choices are disabled.</p><label class="field"><span>Find a player, class or role</span><input id="assignmentsearch" type="search" oninput="filterAssignmentOptions(this.value)"></label><div id="assignmentoptions"></div><p class="muted">Changes are saved in this plan. Regenerating builds a new assignment.</p>`;
  filterAssignmentOptions('');dialog.showModal();document.getElementById('assignmentsearch').focus();
 }
 function filterAssignmentOptions(query){
@@ -51,6 +51,15 @@ function chooseAssignment(index){
  else raid.members.push(match.member);
  document.getElementById('assignmenteditor')?.close();assignmentEditor=null;
  finishManualRosterEdit();toast(match.member.name+' assigned.');return true;
+}
+function removeTeamMember(runId,memberId){
+ const raid=teams.find(t=>t.id===runId),member=raid?.members.find(m=>m.id===memberId);
+ if(!member)return false;
+ rememberRosterEdit('team removal',true);
+ raid.members=raid.members.filter(m=>m.id!==memberId);
+ finishManualRosterEdit();
+ toast(member.name+' removed from '+raid.label+'. Still in the signup roster.');
+ return true;
 }
 function finishManualRosterEdit(){
  if(typeof planningWorker!=='undefined'&&planningWorker){planningJob++;stopPlanning()}
