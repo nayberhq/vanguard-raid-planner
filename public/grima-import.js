@@ -73,7 +73,7 @@ if(typeof window!=='undefined'){render();receiveGrimaSnapshot();}
 
 // Return only the assignments Grima consumes, not the entire editable session.
 function grimaReturnPlan(){
- if(!hasGenerated||dirty)throw Error('Generate an up-to-date plan first.');
+ if(!hasGenerated)throw Error('Generate a plan first.');
  if(!teams.length||teams.length>16)throw Error('Grima supports plans with 1–16 teams.');
  return {format:'vanguard-raid-planner-session',version:6,
   ...(grimaEventId?{grimaEventId}:{}),hasGenerated:true,dirty:false,
@@ -113,6 +113,7 @@ async function openGrimaReturn(){
  document.getElementById('grimareturn')?.remove();
  const dialog=document.createElement('dialog');dialog.id='grimareturn';dialog.setAttribute('aria-labelledby','grimareturntitle');
  dialog.innerHTML='<h2 id="grimareturntitle">Return plan to Grima</h2><p>In the Discord event post, click 📥 Raid Import in the leader row, then paste the code. You need the configured raid leader role.</p><p id="grimareturnstatus" role="status">Preparing your plan code…</p><textarea id="grimareturncode" readonly aria-label="Grima plan code"></textarea><div class="rosteractions"><button id="grimacopy" disabled>Copy code</button><button id="grimadownload">Download Grima JSON</button><button id="grimaclose">Close</button></div><p class="muted">For a JSON file, use /planner-import in the event thread, attach grima-plan.json as session, and enter the revision shown on the current roster card (0 if there is no plan yet). Use /roster-show to check the revision.</p>';
+ if(dirty){const notice=document.createElement('p');notice.textContent='Exports the teams currently shown, including manual edits. Pending roster or settings changes have not automatically rearranged these teams.';dialog.append(notice)}
  document.body.append(dialog);dialog.showModal();
  const status=dialog.querySelector('#grimareturnstatus'),area=dialog.querySelector('#grimareturncode'),copy=dialog.querySelector('#grimacopy');
  dialog.querySelector('#grimaclose').onclick=()=>dialog.close();

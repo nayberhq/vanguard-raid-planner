@@ -19,23 +19,25 @@ assert.equal(vm.runInContext('grimaReturnPlan()',ctx).teams[0].members[0].name,'
 ctx.teams=[{label:'Run',time:0,members:[{id:'manual-1-abc',c:'Champion',spec:'Red',role:'DPS'}]}];
 assert.equal(vm.runInContext('grimaReturnPlan()',ctx).teams[0].members[0].name,'Roster Champ');
 if(process.env.GRIMA_RETURN_OUTPUT)fs.writeFileSync(process.env.GRIMA_RETURN_OUTPUT,JSON.stringify({data,code}));
-ctx.dirty=true;assert.throws(()=>vm.runInContext('grimaReturnPlan()',ctx),/up-to-date/);
-ctx.dirty=false;ctx.hasGenerated=false;assert.throws(()=>vm.runInContext('grimaReturnPlan()',ctx),/up-to-date/);
+ctx.dirty=true;ctx.teams[0].members[0].spec='Red';ctx.teams[0].members[0].role='DPS';
+const edited=vm.runInContext('grimaReturnPlan()',ctx);assert.equal(edited.teams[0].members[0].spec,'Red');assert.equal(edited.dirty,false);assert.equal(ctx.dirty,true);
+const editedCode=await vm.runInContext('grimaPlanCode()',ctx);assert.equal(JSON.parse(zlib.inflateSync(Buffer.from(editedCode.slice(10),'base64url'))).teams[0].members[0].role,'DPS');
+ctx.dirty=false;ctx.hasGenerated=false;assert.throws(()=>vm.runInContext('grimaReturnPlan()',ctx),/Generate a plan/);
 ctx.hasGenerated=true;ctx.teams=[];assert.throws(()=>vm.runInContext('grimaReturnPlan()',ctx),/1–16/);
-console.log('Passed Grima return: 200 assignments, '+code.length+' characters, exact IDs/specs/fellowships, minimal v6 payload and stale-plan rejection.');
+console.log('Passed Grima return: 200 assignments, '+code.length+' characters, exact IDs/specs/fellowships, minimal v6 payload and manual edits with pending settings, and missing-plan rejection.');
 })().catch(e=>{console.error(e);process.exitCode=1});
 
 // Exercise desktop/mobile-independent DOM handlers, including denied clipboard.
 (async()=>{
  const fields={},make=()=>({value:'',textContent:'',disabled:false,hidden:false,focus(){this.focused=true},select(){this.selected=true},setSelectionRange(a,b){this.selection=[a,b]},click(){this.clicked=true}});
- const dialog={setAttribute(){},querySelector(id){return fields[id]??=make()},showModal(){this.open=true},close(){this.open=false;this.onclose?.()},addEventListener(name,fn){if(name==='close')this.onclose=fn},remove(){this.removed=true}};
+ const dialog={setAttribute(){},querySelector(id){return fields[id]??=make()},showModal(){this.open=true},close(){this.open=false;this.onclose?.()},addEventListener(name,fn){if(name==='close')this.onclose=fn},append(node){this.notice=node.textContent},remove(){this.removed=true}};
  const ui=vm.createContext({console,Blob,CompressionStream,Response,Uint8Array,btoa,setTimeout(fn){fn()},URL:{createObjectURL(){return 'blob:test'},revokeObjectURL(){}},navigator:{clipboard:{async writeText(){throw Error('Denied')}}},document:{getElementById(){return null},createElement(type){return type==='dialog'?dialog:make()},body:{append(){}},execCommand(){return false}},toast(message){throw Error(message)}});
  vm.runInContext(fs.readFileSync('public/grima-import.js','utf8'),ui);
- ui.hasGenerated=true;ui.dirty=false;ui.grimaEventId='100';
+ ui.hasGenerated=true;ui.dirty=true;ui.grimaEventId='100';
  ui.teams=[{label:'Run',time:0,members:[{id:'9007199254740993',c:'Guardian',spec:'Blue',role:'Tank'}]}];
  ui.assignFellowships=members=>[members];
  await vm.runInContext('openGrimaReturn()',ui);
- assert(dialog.open);assert(!fields['#grimacopy'].disabled);
+ assert(dialog.open);assert(dialog.notice.includes('teams currently shown'));assert(!fields['#grimacopy'].disabled);
  assert(fields['#grimareturncode'].value.startsWith('grimaplan:'));
  await fields['#grimacopy'].onclick();
  assert(fields['#grimareturncode'].selected);
