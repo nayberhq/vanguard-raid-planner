@@ -78,7 +78,18 @@ function grimaReturnPlan(){
  return {format:'vanguard-raid-planner-session',version:6,
   ...(grimaEventId?{grimaEventId}:{}),hasGenerated:true,dirty:false,
   teams:teams.map(t=>({label:t.label,time:t.time,
-   members:t.members.map(({id,c,spec,role})=>({id,c,spec,role})),
+   members:t.members.map(member=>{
+    let row={id:member.id,c:member.c,spec:member.spec,role:member.role};
+    if(String(member.id).startsWith('manual-')){
+     let label=typeof member.name==='string'?member.name.trim():'';
+     if(!label&&typeof players!=='undefined'){
+      let person=players.find(p=>p.id===member.id);
+      if(person&&typeof person.name==='string')label=person.name.trim();
+     }
+     if(label)row.name=label.slice(0,80);
+    }
+    return row;
+   }),
    grimaFellowships:(t.fellowships?.length?t.fellowships:assignFellowships(t.members))
     .filter(g=>g.length).map(g=>g.map(p=>p.id))
   }))};
