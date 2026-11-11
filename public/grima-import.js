@@ -71,27 +71,54 @@ async function createGrimaLink(){
 function grimaImportMarkup(){return `<section class="panel" style="margin-bottom:20px"><h2>Grima planner link</h2><p class="muted">Open a Grima export link to load signups automatically, or paste one here. Links contain a snapshot of the roster; share only with your raid organizers.</p><label class="field"><span>Planner URL</span><input id="grimalink" type="url" placeholder="https://nayberhq.github.io/vanguard-raid-planner/#grima=…"></label><p class="rosteractions"><button class="primary" onclick="loadGrimaLink()">Load link</button><button onclick="createGrimaLink()">Create link from current plan</button><button onclick="undoGrimaImport()">Restore plan before Grima import</button></p><p id="grimalinkstatus" role="status"></p></section>`}
 if(typeof window!=='undefined'){render();receiveGrimaSnapshot();}
 
-async function grimaPlanCode(){
- const data=compactSessionSnapshot();
- if(!data.hasGenerated||data.dirty)throw Error('Generate an up-to-date plan first.');
+// Return only the assignments Grima consumes, not the entire editable session.
+function grimaReturnPlan(){
+ if(!hasGenerated||dirty)throw Error('Generate an up-to-date plan first.');
+ if(!teams.length||teams.length>16)throw Error('Grima supports plans with 1–16 teams.');
+ return {format:'vanguard-raid-planner-session',version:6,
+  ...(grimaEventId?{grimaEventId}:{}),hasGenerated:true,dirty:false,
+  teams:teams.map(t=>({label:t.label,time:t.time,
+   members:t.members.map(({id,c,spec,role})=>({id,c,spec,role})),
+   grimaFellowships:(t.fellowships?.length?t.fellowships:assignFellowships(t.members))
+    .filter(g=>g.length).map(g=>g.map(p=>p.id))
+  }))};
+}
+async function grimaPlanCode(data=grimaReturnPlan()){
  const stream=new Blob([JSON.stringify(data)]).stream().pipeThrough(new CompressionStream('deflate'));
  const packed=new Uint8Array(await new Response(stream).arrayBuffer());
  let binary='';for(const b of packed)binary+=String.fromCharCode(b);
  const code='grimaplan:'+btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
- if(code.length>4000)throw Error('This plan is too large for a paste code. Export Session JSON and use /planner-import.');
+ if(code.length>4000)throw Error('This plan exceeds Discord’s paste limit. Download the Grima JSON below and attach it with /planner-import.');
  return code;
 }
-if(typeof window!=='undefined'){
- const button=document.createElement('button');button.textContent='Return plan to Grima';button.style.cssText='position:fixed;bottom:12px;right:12px;z-index:100';
- button.onclick=async()=>{
-  try{
-   const code=await grimaPlanCode();
-   const dialog=document.createElement('dialog'),text=document.createElement('p'),area=document.createElement('textarea'),copy=document.createElement('button'),close=document.createElement('button');
-   text.textContent='Copy this code, return to Discord, click Vanguard → Import plan code, and paste it.';
-   area.value=code;area.readOnly=true;area.style.cssText='width:90%;height:120px';copy.textContent='Copy code';close.textContent='Close';
-   copy.onclick=async()=>{try{await navigator.clipboard.writeText(code);text.textContent='Copied. Paste into Grima’s Import plan code dialog.'}catch(e){area.focus();area.select();text.textContent='Use your device’s Copy action on the selected code.'}};
-   close.onclick=()=>dialog.close();dialog.addEventListener('close',()=>dialog.remove());dialog.append(text,area,copy,close);document.body.append(dialog);dialog.showModal();
-  }catch(e){toast(e.message)}
+function downloadGrimaPlan(data){
+ const url=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));
+ const a=document.createElement('a');a.href=url;a.download='grima-plan.json';a.click();
+ setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+async function openGrimaReturn(){
+ let data;
+ try{data=grimaReturnPlan()}catch(e){toast(e.message);return}
+ document.getElementById('grimareturn')?.remove();
+ const dialog=document.createElement('dialog');dialog.id='grimareturn';dialog.setAttribute('aria-labelledby','grimareturntitle');
+ dialog.innerHTML='<h2 id="grimareturntitle">Return plan to Grima</h2><p>In the Discord event post, click 📥 Raid Import in the leader row, then paste the code. You need the configured raid leader role.</p><p id="grimareturnstatus" role="status">Preparing your plan code…</p><textarea id="grimareturncode" readonly aria-label="Grima plan code"></textarea><div class="rosteractions"><button id="grimacopy" disabled>Copy code</button><button id="grimadownload">Download Grima JSON</button><button id="grimaclose">Close</button></div><p class="muted">For a JSON file, use /planner-import in the event thread, attach grima-plan.json as session, and enter the revision shown on the current roster card (0 if there is no plan yet). Use /roster-show to check the revision.</p>';
+ document.body.append(dialog);dialog.showModal();
+ const status=dialog.querySelector('#grimareturnstatus'),area=dialog.querySelector('#grimareturncode'),copy=dialog.querySelector('#grimacopy');
+ dialog.querySelector('#grimaclose').onclick=()=>dialog.close();
+ dialog.addEventListener('close',()=>dialog.remove());
+ dialog.querySelector('#grimadownload').onclick=()=>downloadGrimaPlan(data);
+ copy.onclick=async()=>{
+  area.focus();area.select();area.setSelectionRange(0,area.value.length);
+  try{await navigator.clipboard.writeText(area.value);status.textContent='Copied. Return to Discord → 📥 Raid Import and paste the code.'}
+  catch(e){
+   let copied=false;try{copied=document.execCommand('copy')}catch(_){}
+   status.textContent=copied?'Copied. Return to Discord → 📥 Raid Import and paste the code.':'Code selected. Press Ctrl+C (Cmd+C on Mac), or use Copy on mobile, then paste into Raid Import.';
+  }
  };
- document.body.append(button);
+ try{area.value=await grimaPlanCode(data);copy.disabled=false;status.textContent='Ready to copy · '+area.value.length+' / 4000 characters.'}
+ catch(e){area.hidden=true;status.textContent=e.message+' JSON download remains available.'}
+}
+if(typeof window!=='undefined'){
+ const button=document.createElement('button');button.id='grimareturnbutton';button.textContent='Return plan to Grima';button.style.cssText='position:fixed;bottom:12px;right:12px;z-index:100';
+ button.onclick=openGrimaReturn;document.body.append(button);
 }

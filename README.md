@@ -133,3 +133,15 @@ without confirmation. Their signup and other teams are preserved, so they can
 be assigned to another team. Full signup removal remains in the Roster tab.
 **Undo roster edit** restores removals and replacements. Session export and
 browser recovery preserve the edited plan. Regenerate rebuilds assignments.
+
+### Return a plan to Grima
+
+Use **Return plan to Grima**, then **Copy code**. In the Discord event post,
+click **📥 Raid Import** in the leader row and paste the code. Return codes
+contain assignments and fellowship groups only, keeping large rosters compact.
+If clipboard permission is denied, the code is selected for manual copying.
+
+The dialog also offers **Download Grima JSON**. Use **/planner-import** in the
+event thread with that file and the current roster revision (0 for the first
+plan). File download stays available when compression is unsupported or the
+code exceeds Discord's 4,000-character limit.
